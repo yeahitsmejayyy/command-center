@@ -86,14 +86,21 @@ function applyCreate(state: ProjectState, e: Extract<ParsedEvent, { type: "creat
 function applyMove(state: ProjectState, e: Extract<ParsedEvent, { type: "move" }>): Result {
   const task = state.tasks.find((t) => t.id === e.id);
   if (!task) return notFound(e.id);
-  if (task.status === e.to) return ok(state, []); // no-op: succeeds without bumping version
+  // Same column: only a new position is a real change. Without this, a drop
+  // that reorders within a column would be swallowed by the no-op guard.
+  if (task.status === e.to) {
+    if (e.order === undefined || e.order === task.order) return ok(state, []);
+    return ok(commit(state, replace(state.tasks, { ...task, order: e.order }), e.at), []);
+  }
 
   if (e.to === "in-progress") {
     const active = activeTask(state);
     if (active && active.id !== task.id) return conflict(active);
   }
 
-  const moved = transition(task, e.to, e.at);
+  // A drop carries a position; a status change on its own does not.
+  const placed = transition(task, e.to, e.at);
+  const moved = e.order === undefined ? placed : { ...placed, order: e.order };
   const tasks = replace(state.tasks, moved);
   return ok(commit(state, tasks, e.at), [...effectsForMove(moved), ...emptiedIfDrained(state, tasks)]);
 }

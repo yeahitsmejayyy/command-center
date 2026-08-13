@@ -23,7 +23,9 @@ export const TaskSchema = z.object({
   title: z.string().trim().min(1),
   body: z.string(),
   status: TaskStatusSchema,
-  order: z.number().int(),
+  // Real, not integer: dropping a card between two others needs a position
+  // between their orders, and there is nothing between 1 and 2.
+  order: z.number(),
   createdAt: z.number().int().nonnegative(),
   startedAt: z.number().int().nonnegative().nullable(),
   finishedAt: z.number().int().nonnegative().nullable(),
@@ -75,8 +77,15 @@ export const EventSchema = z.discriminatedUnion("type", [
     planMode: z.boolean().optional(),
   }),
   z.object({ ...base, type: z.literal("delete"), id: z.string().min(1) }),
-  z.object({ ...base, type: z.literal("move"), id: z.string().min(1), to: TaskStatusSchema }),
-  z.object({ ...base, type: z.literal("reorder"), id: z.string().min(1), order: z.number().int() }),
+  z.object({
+    ...base,
+    type: z.literal("move"),
+    id: z.string().min(1),
+    to: TaskStatusSchema,
+    /** Where in the destination column. Omitted, the task keeps its position. */
+    order: z.number().optional(),
+  }),
+  z.object({ ...base, type: z.literal("reorder"), id: z.string().min(1), order: z.number() }),
   z.object({ ...base, type: z.literal("advance"), sessionId: z.string().nullable().default(null) }),
   z.object({ ...base, type: z.literal("finish") }),
   z.object({ ...base, type: z.literal("approve") }),

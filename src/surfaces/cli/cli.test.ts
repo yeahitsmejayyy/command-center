@@ -27,7 +27,9 @@ afterEach(() => {
 async function run(...args: string[]) {
   const proc = Bun.spawn(["bun", "run", CLI, ...args], {
     cwd: project,
-    env: { ...process.env, COMMAND_CENTER_HOME: home },
+    // `enable` opens the board in a browser. A test suite that launches tabs is
+    // a test suite nobody runs twice.
+    env: { ...process.env, COMMAND_CENTER_HOME: home, COMMAND_CENTER_NO_BROWSER: "1" },
     stdout: "pipe",
     stderr: "pipe",
   });

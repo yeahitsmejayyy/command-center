@@ -334,6 +334,72 @@ describe("delete", () => {
   });
 });
 
+describe("placing a task at a position", () => {
+  /**
+   * Dropping a card between two others needs a position between their orders.
+   * Integers run out immediately — there is nothing between 1 and 2 — so order
+   * is a real number and the surface picks the midpoint.
+   */
+  test("reorder accepts a fractional order", () => {
+    const before = stateOf([
+      taskIn("a", "queued", { order: 1 }),
+      taskIn("b", "queued", { order: 2 }),
+      taskIn("c", "backlog", { order: 0 }),
+    ]);
+    const r = ok(apply(before, { type: "reorder", at: LATER, id: "c", order: 1.5 }));
+
+    expect(find(r.state, "c").order).toBe(1.5);
+  });
+
+  test("move can place the task at a position in its new column", () => {
+    const before = stateOf([
+      taskIn("a", "queued", { order: 0 }),
+      taskIn("b", "queued", { order: 1 }),
+      taskIn("dropped", "backlog", { order: 7 }),
+    ]);
+    const r = ok(apply(before, { type: "move", at: LATER, id: "dropped", to: "queued", order: 0.5 }));
+
+    expect(find(r.state, "dropped").status).toBe("queued");
+    expect(find(r.state, "dropped").order).toBe(0.5);
+  });
+
+  /**
+   * Without this, a card dragged into a column keeps whatever order it had
+   * there before and lands somewhere the user did not point at.
+   */
+  test("move without an order leaves the existing order alone", () => {
+    const before = stateOf([taskIn("t1", "backlog", { order: 3 })]);
+    const r = ok(apply(before, { type: "move", at: LATER, id: "t1", to: "queued" }));
+
+    expect(find(r.state, "t1").order).toBe(3);
+  });
+
+  test("a move within the same column still applies the position", () => {
+    // Otherwise a same-column drop is silently swallowed by the no-op guard.
+    const before = stateOf([taskIn("t1", "queued", { order: 5 })]);
+    const r = ok(apply(before, { type: "move", at: LATER, id: "t1", to: "queued", order: 1.5 }));
+
+    expect(find(r.state, "t1").order).toBe(1.5);
+    expect(r.state.version).toBe(before.version + 1);
+  });
+
+  test("a move to the same column with no position is still a no-op", () => {
+    const before = stateOf([taskIn("t1", "queued", { order: 5 })]);
+    const r = ok(apply(before, { type: "move", at: LATER, id: "t1", to: "queued" }));
+
+    expect(r.state.version).toBe(before.version);
+  });
+
+  test("a placed move still applies the destination's field effects", () => {
+    const before = stateOf([taskIn("t1", "queued", { order: 9, attempts: 1 })]);
+    const r = ok(apply(before, { type: "move", at: LATER, id: "t1", to: "in-progress", order: 0 }));
+
+    expect(find(r.state, "t1").startedAt).toBe(LATER);
+    expect(find(r.state, "t1").attempts).toBe(2);
+    expect(find(r.state, "t1").order).toBe(0);
+  });
+});
+
 describe("reorder", () => {
   test("sets order without touching status", () => {
     const r = ok(apply(stateOf([taskIn("t1", "queued", { order: 0 })]), {

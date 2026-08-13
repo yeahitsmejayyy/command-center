@@ -1,0 +1,32 @@
+/*
+ * Nunito Sans, self-hosted.
+ *
+ * The board must work with no network — nothing is fetched at runtime — so the
+ * face ships with the bundle rather than coming from a CDN. This is the one
+ * variable roman face the design actually uses: the export also carries an
+ * italic and a Cormorant Garamond display face, but no rule in the design
+ * references either, so they are not shipped.
+ */
+@font-face {
+  font-family: "Nunito Sans";
+  src: url("/fonts/nunito-sans-roman.ttf") format("truetype");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+html,
+body {
+  height: 100%;
+}
+body {
+  margin: 0;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--ink);
+  font: var(--type-body);
+  -webkit-font-smoothing: antialiased;
+}
+#root {
+  height: 100%;
+}

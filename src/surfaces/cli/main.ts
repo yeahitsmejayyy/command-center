@@ -201,10 +201,32 @@ async function enableProject(cwd: string): Promise<number> {
     return EXIT_FAILED;
   }
 
-  process.stdout.write(
-    `command-center is enabled for this project.\nBoard: http://127.0.0.1:${record.port}\n`,
-  );
+  const url = `http://127.0.0.1:${record.port}`;
+  openInBrowser(url);
+  process.stdout.write(`command-center is enabled for this project.\nBoard: ${url}\n`);
   return EXIT_OK;
+}
+
+/**
+ * Opens the board. Best-effort by design: on a headless machine, over SSH, or
+ * inside a container there is no browser to open, and failing to launch one is
+ * not a reason for `enable` to report failure — the URL is printed either way.
+ */
+function openInBrowser(url: string): void {
+  const opener =
+    process.platform === "darwin" ? ["open", url]
+    : process.platform === "win32" ? ["cmd", "/c", "start", "", url]
+    : ["xdg-open", url];
+
+  if (process.env.COMMAND_CENTER_NO_BROWSER) return;
+
+  try {
+    const child = spawn(opener[0]!, opener.slice(1), { stdio: "ignore", detached: true });
+    child.on("error", () => {}); // no opener installed; the printed URL stands
+    child.unref();
+  } catch {
+    /* nothing to open with */
+  }
 }
 
 async function skipProject(cwd: string): Promise<number> {

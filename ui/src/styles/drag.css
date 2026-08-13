@@ -1,0 +1,37 @@
+/*
+ * Drag affordances.
+ *
+ * The design system supplies the two states it cares about — the source card
+ * fades to --drag-opacity, and a column under the cursor takes an orange wash
+ * with "no dashed outlines, no jumping". What it does not describe is the card
+ * you are holding, because the mockup is static. These rules add only that,
+ * using the system's own tokens.
+ */
+
+/* Cards invite the gesture before it starts. */
+.cc-card {
+  cursor: grab;
+  touch-action: manipulation;
+}
+.cc-card:active {
+  cursor: grabbing;
+}
+
+/* The card under the cursor: lifted and clearly the thing you hold. Declared
+   after the base rule — same specificity, so order decides the cursor.
+   Rotation and scale come from the overlay's inline transform, which must not
+   overwrite dnd-kit's positioning transform. */
+.cc-card--held {
+  box-shadow: var(--shadow-lg);
+  border-color: var(--orange-edge);
+  cursor: grabbing;
+}
+
+/* A column being dragged over deepens slightly beyond the design's wash, so the
+   target is obvious even when the pointer is over a gap rather than a card. */
+.cc-column--over .cc-column__list {
+  border-radius: var(--radius-inset);
+  outline: 1px solid var(--orange-edge);
+  outline-offset: -1px;
+}
+

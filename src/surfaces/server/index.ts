@@ -27,8 +27,21 @@ export interface RunningServer {
   stop(): Promise<void>;
 }
 
+/**
+ * The prebuilt board, shipped with the plugin.
+ *
+ * Claude Code installs plugins with `--ignore-scripts`, so Vite never runs on a
+ * user's machine — `ui/dist` is committed and served as-is. Absent (a checkout
+ * that has not been built), the server still serves its API and says so.
+ */
+function bundledUi(): string | undefined {
+  const dir = join(import.meta.dir, "..", "..", "..", "ui", "dist");
+  return existsSync(join(dir, "index.html")) ? dir : undefined;
+}
+
 export async function startServer(opts: ServeOptions): Promise<RunningServer> {
   const { cwd } = opts;
+  const uiDir = opts.uiDir ?? bundledUi();
   const log = logFor(cwd);
   const clients = new Set<ReadableStreamDefaultController<Uint8Array>>();
 
@@ -57,7 +70,7 @@ export async function startServer(opts: ServeOptions): Promise<RunningServer> {
     port: 0,
     hostname: "127.0.0.1",
     idleTimeout: 0,
-    fetch: (req) => handle(req, { cwd, log, uiDir: opts.uiDir, clients, broadcast }),
+    fetch: (req) => handle(req, { cwd, log, uiDir, clients, broadcast }),
   });
 
   // Bun types this optional, but a listening server always has one.

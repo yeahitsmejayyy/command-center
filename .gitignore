@@ -1,0 +1,14 @@
+# Live progress tracker — local working state, never enters history
+.tracker/
+
+# Dependencies & build output
+node_modules/
+dist/
+
+# OS noise
+.DS_Store
+
+# Misc
+docs/
+PLAN.md 
+.claude

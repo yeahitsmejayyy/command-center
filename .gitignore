@@ -4,6 +4,9 @@
 # Dependencies & build output
 node_modules/
 dist/
+# ...except the UI bundle: Claude Code installs plugins with --ignore-scripts,
+# so Vite never runs on a user's machine. This has to ship prebuilt.
+!ui/dist/
 
 # OS noise
 .DS_Store

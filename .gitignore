@@ -13,5 +13,8 @@ dist/
 
 # Misc
 docs/
-PLAN.md 
+PLAN.md
 .claude
+
+# Working material for the Claude design setup — not a deliverable
+design-system-brief.md

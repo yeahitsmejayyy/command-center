@@ -2,6 +2,7 @@
 import { mutate } from "../../adapters/mutate.ts";
 import { clearRuntime, readRuntime } from "../../adapters/runtime.ts";
 import { readState } from "../../adapters/store.ts";
+import { startServer } from "../server/index.ts";
 import { TaskStatusSchema, type Event, type ProjectState, type Task } from "../../core/types.ts";
 import { flagBool, flagString, parseArgs, type Args } from "./args.ts";
 import { runDiagnostics, renderDiagnostics } from "./doctor.ts";
@@ -33,6 +34,9 @@ Working the queue
   finish               Send the running task to review
   approve              Accept the task under review
   revise               Send the task under review back for more work
+
+Serving
+  server               Run the board server for this project (blocks)
 
 Maintenance
   doctor               Diagnose problems and how to fix them [--json]
@@ -72,6 +76,8 @@ async function main(argv: string[]): Promise<number> {
       return runEvent(cwd, { type: "approve", at: now() });
     case "revise":
       return runEvent(cwd, { type: "revise", at: now() });
+    case "server":
+      return serve(cwd);
     case "doctor":
       return doctor(cwd, args);
     case "cleanup":
@@ -161,6 +167,24 @@ async function doctor(cwd: string, args: Args): Promise<number> {
 
   process.stdout.write(`${renderDiagnostics(checks)}\n`);
   return checks.some((c) => c.status === "fail") ? EXIT_FAILED : EXIT_OK;
+}
+
+async function serve(cwd: string): Promise<number> {
+  const existing = await readRuntime(cwd);
+  if (existing) {
+    fail(
+      `A server is already running for this project on port ${existing.port} (pid ${existing.pid}).`,
+      `Open http://127.0.0.1:${existing.port} — or run \`cmc cleanup\` if it is not responding.`,
+    );
+    return EXIT_FAILED;
+  }
+
+  const server = await startServer({ cwd });
+  process.stdout.write(`command-center is serving ${cwd} at ${server.url}\n`);
+
+  // startServer installs its own SIGINT/SIGTERM handling; block until then.
+  await new Promise<void>(() => {});
+  return EXIT_OK;
 }
 
 async function cleanup(cwd: string): Promise<number> {

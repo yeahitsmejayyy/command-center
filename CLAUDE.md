@@ -13,6 +13,15 @@ The project is called **command-center**. Full stop.
 - `PLAN.md` at the repo root is the build plan and entry point. Follow its execution protocol: one milestone at a time, stop at every 🚪 GATE, keep `.tracker/roadmap.json` updated continuously.
 - v1 reference (read-only, never modify): `/Users/yeahitsmejayyy/Documents/Development/2026/_projects/cc-command-center`
 
+## Design system
+
+The UI's design system comes from **Claude design** — it is not invented ad hoc in this repo.
+
+- When M8 (UI rebuild) starts, the design tokens, palette, type scale, and component direction come from a design system set up in Claude design. Do not improvise a visual language before that exists.
+- `design-system-brief.md` at the repo root holds the answers used to set that up (the "Company name and blurb" and "Any other notes" fields, plus what to attach). It is **gitignored** — working material, not a deliverable.
+- Keep it current. If the product's surfaces, palette, or tone change during the build, update the brief so a re-run of the setup produces the same system.
+- M8's action item "establish real design tokens as a small explicit set" means *transcribe what Claude design produced*, not invent one.
+
 ## Commit messages
 
 Every time a roadmap/tracker item is finished, hand Jayyy a commit message for it — no waiting for the end of the milestone.

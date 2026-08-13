@@ -1,5 +1,4 @@
 import { readFile, unlink } from "node:fs/promises";
-import { createServer, type Server } from "node:net";
 import { z } from "zod";
 import { atomicWriteFile } from "./atomic.ts";
 import { paths } from "./paths.ts";
@@ -7,6 +6,11 @@ import { paths } from "./paths.ts";
 /**
  * Per-project runtime records: which process is serving this project, on which
  * port, for which sessions.
+ *
+ * The port here always comes from an already-listening socket (Bun.serve with
+ * port 0 reports the port it actually bound), so a record never names a port
+ * that nobody holds — v1's race came from allocating a port, closing it, and
+ * handing the bare number to a process that had to bind it again.
  *
  * Records are treated as claims, not facts. A process can die without cleaning
  * up, so every read verifies the pid is alive and deletes the record if not —
@@ -21,51 +25,6 @@ export const RuntimeRecordSchema = z.object({
   sessionIds: z.array(z.string()),
 });
 export type RuntimeRecord = z.infer<typeof RuntimeRecordSchema>;
-
-export interface Listener {
-  readonly host: "127.0.0.1";
-  readonly port: number;
-  /** The live socket, handed over so a server can adopt it without rebinding. */
-  readonly server: Server;
-  close(): Promise<void>;
-}
-
-/**
- * Binds an OS-assigned port on loopback and returns the *listening* socket.
- *
- * The socket is deliberately never closed here. v1 bound :0, read the port,
- * closed the socket, and passed the bare number to a child process that had to
- * bind it again — leaving a window where anything else on the machine could
- * claim it first. That race isn't retried away here; it doesn't exist, because
- * the port is still held by the listener that reports it.
- */
-export function bindLoopback(): Promise<Listener> {
-  return new Promise((resolve, reject) => {
-    const server = createServer();
-    server.once("error", reject);
-
-    // Loopback only. Never 0.0.0.0 — this must not be reachable from the network.
-    server.listen({ port: 0, host: "127.0.0.1" }, () => {
-      const address = server.address();
-      if (typeof address !== "object" || address === null) {
-        server.close();
-        reject(new Error("The OS did not report a bound port."));
-        return;
-      }
-
-      server.removeListener("error", reject);
-      resolve({
-        host: "127.0.0.1",
-        port: address.port,
-        server,
-        close: () =>
-          new Promise<void>((done) => {
-            server.close(() => done());
-          }),
-      });
-    });
-  });
-}
 
 export async function publishRuntime(record: RuntimeRecord): Promise<void> {
   const parsed = RuntimeRecordSchema.parse(record);

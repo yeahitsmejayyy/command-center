@@ -67,6 +67,10 @@ export async function readState(cwd: string): Promise<ProjectState> {
 /**
  * Writes state, but only if the file on disk is still at `expectedVersion`.
  * The check and the write happen under the lock, so they cannot interleave.
+ *
+ * This is for callers holding a version they read earlier — an HTTP client, a
+ * browser tab. Code doing its own read-modify-write should use `transactState`,
+ * which never has to lose the race in the first place.
  */
 export async function writeState(
   state: ProjectState,
@@ -77,6 +81,30 @@ export async function writeState(
     if (current.version !== expectedVersion) {
       throw new StaleWriteError(expectedVersion, current.version, state.cwd);
     }
-    await atomicWriteFile(paths.state(state.cwd), `${JSON.stringify(state, null, 2)}\n`);
+    await persist(state);
   });
+}
+
+/**
+ * Runs a read-modify-write entirely inside the lock.
+ *
+ * Because the read happens after the lock is held, every caller sees the
+ * previous caller's committed result. Contention becomes waiting rather than
+ * failing, so there is no retry loop and no lost update.
+ */
+export async function transactState<T>(
+  cwd: string,
+  fn: (current: ProjectState) => Promise<{ next: ProjectState | null; value: T }>,
+): Promise<T> {
+  return withLock(cwd, async () => {
+    const current = await readState(cwd);
+    const { next, value } = await fn(current);
+    if (next && next.version !== current.version) await persist(next);
+    return value;
+  });
+}
+
+/** Unlocked write. Only call with the project's lock already held. */
+async function persist(state: ProjectState): Promise<void> {
+  await atomicWriteFile(paths.state(state.cwd), `${JSON.stringify(state, null, 2)}\n`);
 }

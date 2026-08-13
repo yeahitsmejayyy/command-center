@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { realpathSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
@@ -22,7 +23,7 @@ export function stateRoot(): string {
  * comes from a hash of the full path, so distinct projects can never collide.
  */
 export function encodeCwd(cwd: string): string {
-  const normalized = cwd.replace(/\/+$/, "") || "/";
+  const normalized = canonical(cwd).replace(/\/+$/, "") || "/";
   const digest = createHash("sha256").update(normalized).digest("hex").slice(0, 10);
   const slug = normalized
     .split("/")
@@ -34,6 +35,27 @@ export function encodeCwd(cwd: string): string {
     .slice(0, 40);
 
   return slug ? `${slug}-${digest}` : digest;
+}
+
+/**
+ * Resolves symlinks so one project has one identity.
+ *
+ * The CLI gets its cwd from `process.cwd()`, which the OS has already resolved
+ * to a physical path. A Claude Code hook is handed whatever logical path the
+ * session was opened with. On macOS `/var` and `/tmp` are themselves symlinks,
+ * so those two can disagree — and then `cmc enable` writes a preference the
+ * hook never finds, and the board reports the project as untouched moments
+ * after it was set up.
+ *
+ * A path that does not exist yet is left as-is: it cannot be resolved, and
+ * failing here would be worse than a slightly different key.
+ */
+function canonical(cwd: string): string {
+  try {
+    return realpathSync.native(cwd);
+  } catch {
+    return cwd;
+  }
 }
 
 const dir = {

@@ -1,4 +1,7 @@
 import { describe, expect, test } from "bun:test";
+import { mkdtempSync, rmSync, symlinkSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { encodeCwd, paths, stateRoot } from "./paths.ts";
 
 describe("encodeCwd", () => {
@@ -30,6 +33,32 @@ describe("encodeCwd", () => {
 
   test("treats trailing slashes as the same project", () => {
     expect(encodeCwd("/Users/j/proj/")).toBe(encodeCwd("/Users/j/proj"));
+  });
+
+  /**
+   * A project reached through a symlink is the same project.
+   *
+   * This is not exotic: on macOS /var and /tmp are themselves symlinks, so the
+   * CLI (which sees the resolved physical path from process.cwd()) and a
+   * Claude Code hook (which is handed the logical path) can disagree about
+   * which project they are in — one enables the board, the other reports the
+   * project as untouched.
+   */
+  test("a symlinked path and its target are the same project", () => {
+    const real = mkdtempSync(join(tmpdir(), "cc-real-"));
+    const link = join(mkdtempSync(join(tmpdir(), "cc-link-")), "alias");
+    symlinkSync(real, link);
+
+    try {
+      expect(encodeCwd(link)).toBe(encodeCwd(real));
+    } finally {
+      rmSync(link, { force: true });
+      rmSync(real, { recursive: true, force: true });
+    }
+  });
+
+  test("a path that does not exist still encodes without throwing", () => {
+    expect(() => encodeCwd("/definitely/not/here/at/all")).not.toThrow();
   });
 });
 

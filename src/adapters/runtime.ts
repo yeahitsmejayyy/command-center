@@ -2,6 +2,7 @@ import { readFile, unlink } from "node:fs/promises";
 import { z } from "zod";
 import { atomicWriteFile } from "./atomic.ts";
 import { paths } from "./paths.ts";
+import { withLock } from "./lock.ts";
 
 /**
  * Per-project runtime records: which process is serving this project, on which
@@ -27,6 +28,10 @@ export const RuntimeRecordSchema = z.object({
 export type RuntimeRecord = z.infer<typeof RuntimeRecordSchema>;
 
 export async function publishRuntime(record: RuntimeRecord): Promise<void> {
+  await write(record);
+}
+
+async function write(record: RuntimeRecord): Promise<void> {
   const parsed = RuntimeRecordSchema.parse(record);
   await atomicWriteFile(paths.runtime(parsed.cwd), `${JSON.stringify(parsed, null, 2)}\n`);
 }
@@ -61,6 +66,42 @@ export async function readRuntime(cwd: string): Promise<RuntimeRecord | null> {
 
 export async function clearRuntime(cwd: string): Promise<void> {
   await reap(paths.runtime(cwd));
+}
+
+/**
+ * Session tracking — why the server knows who is watching.
+ *
+ * Two Claude sessions can be open on one project. If ending either session
+ * stopped the server, closing one window would take the board away from the
+ * other. So the record counts its sessions, and only the last one to leave
+ * turns the lights off.
+ *
+ * Both operations run under the project lock: they are read-modify-write on a
+ * shared file, and two sessions starting at once is the normal case, not a
+ * rare one.
+ */
+export async function attachSession(cwd: string, sessionId: string): Promise<void> {
+  await withLock(cwd, async () => {
+    const record = await readRuntime(cwd);
+    if (!record) return; // no server: nothing to attach to
+    if (record.sessionIds.includes(sessionId)) return;
+
+    await write({ ...record, sessionIds: [...record.sessionIds, sessionId] });
+  });
+}
+
+export async function detachSession(
+  cwd: string,
+  sessionId: string,
+): Promise<{ remaining: number }> {
+  return withLock(cwd, async () => {
+    const record = await readRuntime(cwd);
+    if (!record) return { remaining: 0 };
+
+    const sessionIds = record.sessionIds.filter((id) => id !== sessionId);
+    await write({ ...record, sessionIds });
+    return { remaining: sessionIds.length };
+  });
 }
 
 async function reap(path: string): Promise<void> {

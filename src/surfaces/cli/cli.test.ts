@@ -303,6 +303,39 @@ describe("cleanup", () => {
     expect(r.code).toBe(0);
   });
 
+  test("stops a server that no session is using", async () => {
+    await run("enable");
+    expect(JSON.parse((await run("doctor", "--json")).stdout)
+      .checks.find((c: { name: string }) => c.name === "server").status).toBe("ok");
+
+    const r = await run("cleanup");
+    expect(r.code).toBe(0);
+    expect(r.stdout.toLowerCase()).toContain("stopped");
+
+    const after = JSON.parse((await run("doctor", "--json")).stdout)
+      .checks.find((c: { name: string }) => c.name === "server");
+    expect(after.detail.toLowerCase()).toContain("not running");
+  });
+
+  /**
+   * A session that dies without SessionEnd firing leaves its id behind, which
+   * would otherwise keep the board alive forever with nobody watching.
+   */
+  test("--force stops a server even while sessions are attached", async () => {
+    await run("enable");
+    await run("attach-session", "ghost-session");
+
+    const held = await run("cleanup");
+    expect(held.stdout.toLowerCase()).toContain("--force");
+
+    const forced = await run("cleanup", "--force");
+    expect(forced.code).toBe(0);
+
+    const after = JSON.parse((await run("doctor", "--json")).stdout)
+      .checks.find((c: { name: string }) => c.name === "server");
+    expect(after.detail.toLowerCase()).toContain("not running");
+  });
+
   test("reaps a runtime record whose process is gone", async () => {
     await run("add", "Task");
     const { stdout } = await run("doctor", "--json");

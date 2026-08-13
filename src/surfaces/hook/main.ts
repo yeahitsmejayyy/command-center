@@ -3,7 +3,7 @@ import { spawn } from "node:child_process";
 import { join } from "node:path";
 import { logFor } from "../../adapters/log.ts";
 import { readPrefs } from "../../adapters/prefs.ts";
-import { clearRuntime, readRuntime } from "../../adapters/runtime.ts";
+import { attachSession, clearRuntime, detachSession, readRuntime } from "../../adapters/runtime.ts";
 import { readState } from "../../adapters/store.ts";
 import { HOOK_CONTRACT_VERSION, contractMismatchMessage } from "./contract.ts";
 
@@ -31,10 +31,11 @@ async function main(argv: string[]): Promise<void> {
   const declaredContract = Number.parseInt(valueOf(argv, "--contract") ?? "", 10);
 
   if (Number.isFinite(declaredContract) && declaredContract !== HOOK_CONTRACT_VERSION) {
-    // Loud, not silent: say it in the session and on stderr.
+    // Loud, not silent — but only SessionStart has a channel into the session,
+    // so on any other event stderr is the whole story.
     const message = contractMismatchMessage(declaredContract);
     process.stderr.write(`${message}\n`);
-    emit(message);
+    if (event === "session-start") emit(message);
     return;
   }
 
@@ -46,7 +47,7 @@ async function main(argv: string[]): Promise<void> {
     case "session-start":
       return sessionStart(cwd, input);
     case "session-end":
-      return sessionEnd(cwd);
+      return sessionEnd(cwd, input);
     default:
       return; // unknown event: stay quiet, stay out of the way
   }
@@ -67,12 +68,22 @@ async function sessionStart(cwd: string, input: HookInput): Promise<void> {
     return;
   }
 
+  // Register this session so SessionEnd knows whether anyone else is watching.
+  if (input.session_id) await attachSession(cwd, input.session_id);
+
   emit(await announcement(cwd, record.port, input.session_id));
 }
 
-async function sessionEnd(cwd: string): Promise<void> {
+async function sessionEnd(cwd: string, input: HookInput): Promise<void> {
   const record = await readRuntime(cwd);
   if (!record) return;
+
+  // Several Claude sessions can share one project. Only the last one out turns
+  // the lights off; otherwise closing one window kills the other's board.
+  if (input.session_id) {
+    const { remaining } = await detachSession(cwd, input.session_id);
+    if (remaining > 0) return;
+  }
 
   try {
     process.kill(record.pid, "SIGTERM");

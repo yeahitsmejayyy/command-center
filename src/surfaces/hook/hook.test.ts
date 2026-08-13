@@ -61,6 +61,14 @@ function contextOf(stdout: string): string {
 
 const CONTRACT = [`--contract`, String(HOOK_CONTRACT_VERSION)];
 
+function sessionInput(sessionId: string) {
+  return { session_id: sessionId, cwd: project, hook_event_name: "SessionStart", source: "startup" };
+}
+
+function endInput(sessionId: string) {
+  return { session_id: sessionId, cwd: project, hook_event_name: "SessionEnd", reason: "other" };
+}
+
 describe("contract version", () => {
   test("accepts the version the plugin declares", async () => {
     const r = await runHook("session-start", CONTRACT);
@@ -178,6 +186,75 @@ describe("robustness", () => {
     const r = await runHook("session-start", CONTRACT);
 
     expect(() => JSON.parse(r.stdout)).not.toThrow();
+  });
+});
+
+describe("multiple sessions on one project", () => {
+  /**
+   * Two Claude windows open on the same project. Closing one must not take the
+   * board away from the other — the bug this whole mechanism exists to prevent.
+   */
+  test("the board survives one session ending while another is open", async () => {
+    await setEnabled(project, true);
+    await runHook("session-start", CONTRACT, sessionInput("s1"));
+    await runHook("session-start", CONTRACT, sessionInput("s2"));
+
+    const before = await readRuntime(project);
+    expect(before!.sessionIds.sort()).toEqual(["s1", "s2"]);
+
+    await runHook("session-end", CONTRACT, endInput("s1"));
+    await Bun.sleep(300);
+
+    const after = await readRuntime(project);
+    expect(after).not.toBeNull();
+    expect(after!.pid).toBe(before!.pid);
+    expect(after!.sessionIds).toEqual(["s2"]);
+  });
+
+  test("the board stops once the last session ends", async () => {
+    await setEnabled(project, true);
+    await runHook("session-start", CONTRACT, sessionInput("s1"));
+    await runHook("session-start", CONTRACT, sessionInput("s2"));
+
+    await runHook("session-end", CONTRACT, endInput("s1"));
+    await runHook("session-end", CONTRACT, endInput("s2"));
+
+    const deadline = Date.now() + 3000;
+    while (Date.now() < deadline && (await readRuntime(project)) !== null) {
+      await Bun.sleep(50);
+    }
+    expect(await readRuntime(project)).toBeNull();
+  });
+
+  test("a session that starts is registered against the server", async () => {
+    await setEnabled(project, true);
+    await runHook("session-start", CONTRACT, sessionInput("only-one"));
+
+    expect((await readRuntime(project))?.sessionIds).toEqual(["only-one"]);
+  });
+});
+
+describe("output names the event it is answering", () => {
+  test("session-start output is tagged SessionStart", async () => {
+    await setEnabled(project, true);
+    const parsed = JSON.parse((await runHook("session-start", CONTRACT)).stdout);
+
+    expect(parsed.hookSpecificOutput.hookEventName).toBe("SessionStart");
+  });
+
+  test("session-end says nothing at all — it has no context to inject", async () => {
+    await setEnabled(project, true);
+    await runHook("session-start", CONTRACT, sessionInput("s1"));
+
+    const r = await runHook("session-end", CONTRACT, endInput("s1"));
+    expect(r.stdout.trim()).toBe("");
+  });
+
+  test("a contract mismatch on session-end stays silent on stdout", async () => {
+    const r = await runHook("session-end", ["--contract", "99"], endInput("s1"));
+
+    expect(r.stdout.trim()).toBe("");
+    expect(r.stderr).toContain("99"); // still reported where an operator can see it
   });
 });
 

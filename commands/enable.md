@@ -7,7 +7,7 @@ Enable command-center for the current project.
 Run this from the project directory:
 
 ```bash
-"${CLAUDE_PLUGIN_ROOT}/hooks/run" enable --contract 1
+"${CLAUDE_PLUGIN_ROOT}/bin/cmc" enable
 ```
 
 The command prints the board's URL. Report it to the user and tell them the board is open in their browser. From here on, this project's board starts automatically at the beginning of every session.

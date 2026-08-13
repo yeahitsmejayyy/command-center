@@ -7,7 +7,7 @@ Turn command-center off for the current project.
 Run this from the project directory:
 
 ```bash
-"${CLAUDE_PLUGIN_ROOT}/hooks/run" skip --contract 1
+"${CLAUDE_PLUGIN_ROOT}/bin/cmc" skip
 ```
 
 Confirm to the user that this project is now skipped: no board will start, and they will not be asked again. Mention that `/command-center:enable` reverses it whenever they want.

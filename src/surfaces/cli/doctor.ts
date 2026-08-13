@@ -1,4 +1,6 @@
 import { access, constants, readFile, stat } from "node:fs/promises";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { connect } from "node:net";
 import { paths } from "../../adapters/paths.ts";
 import { readRuntime } from "../../adapters/runtime.ts";
@@ -28,11 +30,110 @@ const MIN_BUN = [1, 3, 0] as const;
 export async function runDiagnostics(cwd: string): Promise<Check[]> {
   return [
     checkBun(),
+    await checkDependencies(),
     await checkStateRoot(),
     await checkStateFile(cwd),
     await checkLock(cwd),
     await checkServer(cwd),
   ];
+}
+
+/**
+ * The plugin ships source, so its runtime dependency must genuinely be present.
+ *
+ * Claude Code installs plugin dependencies when it caches the plugin, but the
+ * docs are explicit that a failed install never blocks the plugin and is only
+ * recorded in debug output. When that happens Bun quietly auto-installs
+ * whatever version it can reach instead — observed resolving zod 4.x against a
+ * `^3` pin — so "it ran" is not proof the right code loaded. This checks both
+ * that the dependency resolves and that its major version is the expected one.
+ */
+async function checkDependencies(): Promise<Check> {
+  const EXPECTED_MAJOR = 3;
+
+  try {
+    const { z } = await import("zod");
+    // Round-trip a schema: proves the library is loaded and behaving.
+    const probe = z.object({ ok: z.boolean() }).safeParse({ ok: true });
+    if (!probe.success) {
+      return {
+        name: "dependencies",
+        status: "fail",
+        detail: "zod is installed but did not validate a trivial schema.",
+        fix: `bun install --cwd "${pluginRoot()}"`,
+      };
+    }
+
+    // Where it resolved from is the real signal. If zod did not come from the
+    // plugin's own node_modules, the pinned install never happened and Bun
+    // auto-installed whatever it could reach — which is how a `^3` pin ends up
+    // running 4.x. "It loaded" is not the same as "the right one loaded".
+    const from = resolvedFrom();
+    const expectedPrefix = join(pluginRoot(), "node_modules");
+
+    if (from && !from.startsWith(expectedPrefix)) {
+      return {
+        name: "dependencies",
+        status: "warn",
+        detail:
+          `zod is being auto-resolved from ${from} rather than the plugin's own node_modules, ` +
+          `so its version is whatever Bun had to hand — not the pinned ${EXPECTED_MAJOR}.x. ` +
+          `The plugin's dependency install did not complete.`,
+        fix: `bun install --cwd "${pluginRoot()}"`,
+      };
+    }
+
+    const version = await installedZodVersion();
+    const major = version ? Number.parseInt(version.split(".")[0] ?? "", 10) : null;
+
+    if (major !== null && major !== EXPECTED_MAJOR) {
+      return {
+        name: "dependencies",
+        status: "warn",
+        detail: `zod ${version} is installed, but this build expects ${EXPECTED_MAJOR}.x.`,
+        fix: `bun install --cwd "${pluginRoot()}"`,
+      };
+    }
+
+    return {
+      name: "dependencies",
+      status: "ok",
+      detail: version ? `zod ${version}` : "zod is installed",
+    };
+  } catch {
+    return {
+      name: "dependencies",
+      status: "fail",
+      detail:
+        "The runtime dependency (zod) is not installed, so command-center cannot run. " +
+        "This usually means the plugin's dependency install did not complete.",
+      fix: `bun install --cwd "${pluginRoot()}"`,
+    };
+  }
+}
+
+/** Absolute path zod actually resolved to, or null if that cannot be determined. */
+function resolvedFrom(): string | null {
+  try {
+    const url = import.meta.resolve("zod");
+    return url.startsWith("file://") ? fileURLToPath(url) : null;
+  } catch {
+    return null;
+  }
+}
+
+async function installedZodVersion(): Promise<string | null> {
+  try {
+    const pkg = await readFile(join(pluginRoot(), "node_modules", "zod", "package.json"), "utf8");
+    return (JSON.parse(pkg) as { version?: string }).version ?? null;
+  } catch {
+    return null; // auto-installed from Bun's global cache: no local copy to read
+  }
+}
+
+/** The plugin's own directory, whether installed or run from a checkout. */
+function pluginRoot(): string {
+  return process.env.CLAUDE_PLUGIN_ROOT ?? join(import.meta.dir, "..", "..", "..");
 }
 
 function checkBun(): Check {

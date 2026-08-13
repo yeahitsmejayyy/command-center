@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.14"
+
+      # Frozen so CI installs exactly what a user's machine will: Claude Code
+      # runs `bun install --frozen-lockfile --ignore-scripts` when it caches the
+      # plugin, and a lockfile that only resolves loosely would hide a break.
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Typecheck
+        run: bun run typecheck
+
+      - name: Test
+        run: bun test
+
+      # The plugin ships source, so the manifests are the build artifact.
+      - name: Check manifests
+        run: bun run scripts/check-manifests.ts
+
+      # The shims are the only executable surface; a lost exec bit means the
+      # hook silently never runs.
+      - name: Verify the entry point is executable
+        run: test -x bin/cmc || (echo "bin/cmc is not executable" && exit 1)

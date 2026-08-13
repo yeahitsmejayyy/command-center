@@ -287,6 +287,21 @@ describe("doctor", () => {
     expect(lock.fix).toContain("rm");
   });
 
+  /**
+   * The plugin ships source, so its one runtime dependency has to actually be
+   * installed. Claude Code installs it when caching the plugin — but that
+   * install is documented as failing silently, and Bun will then auto-install
+   * whatever version it can reach, which is not necessarily the pinned one.
+   */
+  test("checks that the runtime dependency is installed and the right major", async () => {
+    const { stdout } = await run("doctor", "--json");
+    const deps = JSON.parse(stdout).checks.find((c: { name: string }) => c.name === "dependencies");
+
+    expect(deps).toBeDefined();
+    expect(deps.status).toBe("ok");
+    expect(deps.detail).toContain("zod");
+  });
+
   test("reports no server running when there is none", async () => {
     const { stdout } = await run("doctor", "--json");
     const server = JSON.parse(stdout).checks.find((c: { name: string }) => c.name === "server");

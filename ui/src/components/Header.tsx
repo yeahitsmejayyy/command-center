@@ -15,12 +15,15 @@ export function Header({
   theme,
   onToggleTheme,
   onNewTask,
+  newTaskHint,
 }: {
   cwd: string;
   connection: Connection;
   theme: "light" | "dark";
   onToggleTheme: () => void;
   onNewTask: () => void;
+  /** The key that also opens a new task, shown on the button. */
+  newTaskHint?: string;
 }) {
   return (
     <header className="cc-header">
@@ -55,6 +58,7 @@ export function Header({
 
       <button type="button" className="cc-btn cc-btn--primary" onClick={onNewTask}>
         New Task
+        {newTaskHint && <kbd className="cc-kbd cc-kbd--onprimary">{newTaskHint}</kbd>}
       </button>
     </header>
   );

@@ -457,3 +457,11 @@
   text-transform: uppercase;
   white-space: nowrap;
 }
+
+/* A key hint riding on a filled button needs its own contrast: the design's
+   .cc-kbd is drawn for a neutral surface. */
+.cc-btn--primary .cc-kbd--onprimary {
+  margin-left: 8px;
+  border-color: rgb(255 255 255 / 0.35);
+  color: rgb(255 255 255 / 0.85);
+}

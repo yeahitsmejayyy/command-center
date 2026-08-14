@@ -31,6 +31,7 @@ import { NewTaskDialog } from "./components/NewTaskDialog.tsx";
 import { TaskDialog } from "./components/TaskDialog.tsx";
 import { ConfirmDialog } from "./components/ConfirmDialog.tsx";
 import { COLUMNS, COLUMN_STATUSES, type ColumnSpec } from "./lib/columns.ts";
+import { useShortcuts, type Shortcut } from "./lib/shortcuts.ts";
 
 type Theme = "light" | "dark";
 
@@ -124,6 +125,29 @@ export function App() {
     return grouped;
   }, [state]);
 
+  /**
+   * Board shortcuts. One entry per key; the guards against typing and modified
+   * presses live in the hook, so adding the next one is a line here.
+   *
+   * A new task always starts in Backlog: the shortcut is for capturing
+   * something before it is lost, and deciding where it belongs comes after.
+   */
+  const shortcuts = useMemo<Shortcut[]>(
+    () => [
+      {
+        key: "n",
+        label: "New task",
+        run: () => setComposing(COLUMNS[0]!),
+      },
+    ],
+    [],
+  );
+
+  // Silenced while a dialog is open — the keyboard is talking to that, not the
+  // board behind it.
+  const dialogOpen = composing !== null || opened !== null || deleting !== null;
+  useShortcuts(shortcuts, !dialogOpen);
+
   const sensors = useSensors(
     // A few pixels of travel before a drag starts, so clicking a card still works.
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -207,6 +231,7 @@ export function App() {
         theme={theme}
         onToggleTheme={() => setTheme(theme === "dark" ? "light" : "dark")}
         onNewTask={() => setComposing(COLUMNS[0]!)}
+        newTaskHint="N"
       />
 
       <div className="cc-bar">

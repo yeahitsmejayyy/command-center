@@ -37,6 +37,10 @@ export function apply(state: ProjectState, event: Event): Result {
       return applyUpdate(state, e);
     case "delete":
       return applyDelete(state, e);
+    case "attach":
+      return applyAttach(state, e);
+    case "detach":
+      return applyDetach(state, e);
     case "reorder":
       return applyReorder(state, e);
     case "advance":
@@ -75,6 +79,7 @@ function applyCreate(state: ProjectState, e: Extract<ParsedEvent, { type: "creat
     attempts: e.status === "in-progress" ? 1 : 0,
     planMode: e.planMode,
     sessionId: null,
+    attachments: [],
   };
 
   const next = commit(state, [...state.tasks, task], e.at);
@@ -130,6 +135,29 @@ function applyDelete(state: ProjectState, e: Extract<ParsedEvent, { type: "delet
 
   const tasks = state.tasks.filter((t) => t.id !== e.id);
   return ok(commit(state, tasks, e.at), emptiedIfDrained(state, tasks));
+}
+
+function applyAttach(state: ProjectState, e: Extract<ParsedEvent, { type: "attach" }>): Result {
+  const task = state.tasks.find((t) => t.id === e.id);
+  if (!task) return notFound(e.id);
+  if (task.attachments.some((a) => a.id === e.attachment.id)) {
+    return reject("E_DUPLICATE_ID", `That file is already attached to "${task.title}".`, e.id);
+  }
+
+  const updated: Task = { ...task, attachments: [...task.attachments, e.attachment] };
+  return ok(commit(state, replace(state.tasks, updated), e.at), []);
+}
+
+function applyDetach(state: ProjectState, e: Extract<ParsedEvent, { type: "detach" }>): Result {
+  const task = state.tasks.find((t) => t.id === e.id);
+  if (!task) return notFound(e.id);
+  if (!task.attachments.some((a) => a.id === e.attachmentId)) return ok(state, []);
+
+  const updated: Task = {
+    ...task,
+    attachments: task.attachments.filter((a) => a.id !== e.attachmentId),
+  };
+  return ok(commit(state, replace(state.tasks, updated), e.at), []);
 }
 
 function applyReorder(state: ProjectState, e: Extract<ParsedEvent, { type: "reorder" }>): Result {

@@ -29,7 +29,7 @@ function task(id: string, status: TaskStatus, order: number): Task {
   return {
     id, title: id, body: "", status, order,
     createdAt: 0, startedAt: null, finishedAt: null,
-    attempts: 0, planMode: false, sessionId: null,
+    attempts: 0, planMode: false, sessionId: null, attachments: [],
   };
 }
 
@@ -110,7 +110,10 @@ describe("moving between columns", () => {
   });
 
   test("an empty column accepts the card", () => {
-    expect(orderAfter(board(), "a", "done")).toEqual(["a"]);
+    // Queue is empty here; done is deliberately not droppable, so it cannot
+    // stand in for "an empty column" any more.
+    const onlyBacklog = [task("a", "backlog", 0), task("b", "backlog", 1)];
+    expect(orderAfter(onlyBacklog, "a", "queued")).toEqual(["a"]);
   });
 
   test("the card leaves the column it came from", () => {
@@ -122,6 +125,56 @@ describe("moving between columns", () => {
 
   test("the status comes from the column, not the card's old one", () => {
     expect(planDrop(board(), "a", "y", COLUMNS)?.status).toBe("queued");
+  });
+});
+
+describe("only the waiting columns accept a dragged card", () => {
+  /**
+   * Backlog and queue hold work that has not happened yet, so a person may put
+   * anything there. The columns to their right are records of what the workflow
+   * did — advanced, finished, approved — and a card dragged into one would
+   * assert something that never took place.
+   */
+  const board = () => [
+    task("shelved", "backlog", 0),
+    task("queued-one", "queued", 0),
+    task("running", "in-progress", 0),
+    task("reviewing", "awaiting-review", 0),
+    task("finished", "done", 0),
+  ];
+
+  for (const closed of ["in-progress", "awaiting-review", "done"] as const) {
+    test(`a queued card cannot be dropped into ${closed}`, () => {
+      expect(planDrop(board(), "queued-one", closed, COLUMNS)).toBeNull();
+    });
+  }
+
+  test("nor onto a card sitting in one of those columns", () => {
+    expect(planDrop(board(), "queued-one", "running", COLUMNS)).toBeNull();
+    expect(planDrop(board(), "queued-one", "reviewing", COLUMNS)).toBeNull();
+    expect(planDrop(board(), "queued-one", "finished", COLUMNS)).toBeNull();
+  });
+
+  test("even when the column is empty", () => {
+    const idle = [task("queued-one", "queued", 0)];
+    expect(planDrop(idle, "queued-one", "in-progress", COLUMNS)).toBeNull();
+    expect(planDrop(idle, "queued-one", "done", COLUMNS)).toBeNull();
+  });
+
+  test("backlog and queue still accept anything", () => {
+    expect(planDrop(board(), "finished", "backlog", COLUMNS)?.status).toBe("backlog");
+    expect(planDrop(board(), "reviewing", "queued", COLUMNS)?.status).toBe("queued");
+    expect(planDrop(board(), "running", "queued", COLUMNS)?.status).toBe("queued");
+  });
+
+  test("a card can always be dragged out — that is how work is stopped or undone", () => {
+    expect(planDrop(board(), "running", "backlog", COLUMNS)?.status).toBe("backlog");
+    expect(planDrop(board(), "finished", "queued", COLUMNS)?.status).toBe("queued");
+  });
+
+  test("reordering inside a closed column is still allowed", () => {
+    const two = [task("a", "done", 0), task("b", "done", 1)];
+    expect(planDrop(two, "b", "a", COLUMNS)?.status).toBe("done");
   });
 });
 

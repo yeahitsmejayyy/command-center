@@ -2,6 +2,7 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import type { Task } from "../api.ts";
 import { relativeTime, shortId } from "../lib/format.ts";
+import { CardAction, StopIcon, TrashIcon } from "./CardAction.tsx";
 
 /**
  * A task card.
@@ -11,7 +12,17 @@ import { relativeTime, shortId } from "../lib/format.ts";
  * title, an excerpt, and who last touched it — which is Claude whenever a
  * session worked the task.
  */
-export function Card({ task, onOpen }: { task: Task; onOpen: (task: Task) => void }) {
+export function Card({
+  task,
+  onOpen,
+  onStop,
+  onDelete,
+}: {
+  task: Task;
+  onOpen: (task: Task) => void;
+  onStop: (task: Task) => void;
+  onDelete: (task: Task) => void;
+}) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: task.id,
     data: { status: task.status },
@@ -21,6 +32,8 @@ export function Card({ task, onOpen }: { task: Task; onOpen: (task: Task) => voi
     <CardBody
       task={task}
       onOpen={onOpen}
+      onStop={onStop}
+      onDelete={onDelete}
       nodeRef={setNodeRef}
       className={isDragging ? "cc-card cc-card--dragging" : "cc-card"}
       style={{
@@ -44,6 +57,8 @@ export function DraggedCard({ task }: { task: Task }) {
     <CardBody
       task={task}
       onOpen={() => {}}
+      onStop={() => {}}
+      onDelete={() => {}}
       className="cc-card cc-card--held"
       style={{ transform: "rotate(2deg) scale(1.02)", cursor: "grabbing" }}
     />
@@ -53,6 +68,8 @@ export function DraggedCard({ task }: { task: Task }) {
 interface CardBodyProps {
   task: Task;
   onOpen: (task: Task) => void;
+  onStop: (task: Task) => void;
+  onDelete: (task: Task) => void;
   className: string;
   style?: React.CSSProperties;
   handleProps?: Record<string, unknown>;
@@ -65,7 +82,7 @@ interface CardBodyProps {
   nodeRef?: (node: HTMLElement | null) => void;
 }
 
-function CardBody({ task, onOpen, className, style, handleProps, nodeRef }: CardBodyProps) {
+function CardBody({ task, onOpen, onStop, onDelete, className, style, handleProps, nodeRef }: CardBodyProps) {
   const touchedAt = task.finishedAt ?? task.startedAt ?? task.createdAt;
   const worked = task.sessionId !== null || task.attempts > 0;
 
@@ -80,11 +97,14 @@ function CardBody({ task, onOpen, className, style, handleProps, nodeRef }: Card
       <div className="cc-card__top">
         <span className="cc-id">{shortId(task.id)}</span>
         <div style={{ flex: "1 1 0%" }} />
-        {task.planMode && <span className="cc-chip cc-chip--sq">plan</span>}
-        {task.attempts > 1 && (
-          <span className="cc-chip cc-chip--sq" title={`Attempt ${task.attempts}`}>
-            ×{task.attempts}
-          </span>
+        {task.status === "in-progress" ? (
+          <CardAction label="Stop work" tone="danger" onAct={() => onStop(task)}>
+            <StopIcon />
+          </CardAction>
+        ) : (
+          <CardAction label="Delete" tone="warn" onAct={() => onDelete(task)}>
+            <TrashIcon />
+          </CardAction>
         )}
       </div>
 
@@ -101,6 +121,11 @@ function CardBody({ task, onOpen, className, style, handleProps, nodeRef }: Card
           </>
         )}
         <div style={{ flex: "1 1 0%" }} />
+        {task.planMode && (
+          <span className="cc-badge" title="Claude plans before changing anything">
+            Plan
+          </span>
+        )}
         <span className="cc-card__when">{relativeTime(touchedAt)}</span>
       </div>
     </article>

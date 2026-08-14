@@ -18,6 +18,21 @@ export type TaskStatus = z.infer<typeof TaskStatusSchema>;
 /** Statuses that carry a finishedAt. */
 export const TERMINAL_STATUSES: readonly TaskStatus[] = ["awaiting-review", "done", "skipped"];
 
+/**
+ * A file that travels with a task.
+ *
+ * The bytes live on disk next to the rest of the project's state; the task only
+ * carries the metadata, so reading the board never means reading attachments.
+ */
+export const AttachmentSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  mimeType: z.string().min(1),
+  size: z.number().int().nonnegative(),
+  addedAt: z.number().int().nonnegative(),
+});
+export type Attachment = z.infer<typeof AttachmentSchema>;
+
 export const TaskSchema = z.object({
   id: z.string().min(1),
   title: z.string().trim().min(1),
@@ -32,6 +47,8 @@ export const TaskSchema = z.object({
   attempts: z.number().int().nonnegative(),
   planMode: z.boolean(),
   sessionId: z.string().nullable(),
+  // Defaulted so a board written before attachments existed still parses.
+  attachments: z.array(AttachmentSchema).default([]),
 });
 export type Task = z.infer<typeof TaskSchema>;
 
@@ -77,6 +94,18 @@ export const EventSchema = z.discriminatedUnion("type", [
     planMode: z.boolean().optional(),
   }),
   z.object({ ...base, type: z.literal("delete"), id: z.string().min(1) }),
+  z.object({
+    ...base,
+    type: z.literal("attach"),
+    id: z.string().min(1),
+    attachment: AttachmentSchema,
+  }),
+  z.object({
+    ...base,
+    type: z.literal("detach"),
+    id: z.string().min(1),
+    attachmentId: z.string().min(1),
+  }),
   z.object({
     ...base,
     type: z.literal("move"),

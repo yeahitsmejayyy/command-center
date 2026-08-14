@@ -1,5 +1,9 @@
 /*
- * Drag affordances.
+ * Application styles layered over the design export.
+ *
+ * The export ships the component library; this file holds only what the static
+ * mockup could not describe — drag states, attachments, and the few places the
+ * export's assumptions do not fit a live board.
  *
  * The design system supplies the two states it cares about — the source card
  * fades to --drag-opacity, and a column under the cursor takes an orange wash
@@ -35,3 +39,421 @@
   outline-offset: -1px;
 }
 
+
+/* The switch row's default 14px gap and 2px stack read loose next to a compact
+   dialog; tighten both so the control and its copy feel like one control. */
+.cc-switch-row {
+  gap: 10px;
+  align-items: flex-start;
+}
+.cc-switch-row__body {
+  gap: 1px;
+}
+.cc-switch-row__desc {
+  line-height: var(--lh-normal);
+  max-width: 46ch;
+}
+/* Optical alignment: the 20px switch against a 13.5px title. */
+.cc-switch-row > .cc-switch {
+  margin-top: 1px;
+}
+
+/* ---------- Attachments ----------
+   Built from the system's own tokens; the design export has no dropzone,
+   because the mockup's new-task dialog does not carry files. */
+.cc-dropzone {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 60px;
+  padding: var(--space-3);
+  border: 1px dashed var(--border-2);
+  border-radius: var(--radius-sm);
+  background: var(--field);
+  cursor: pointer;
+  transition:
+    border-color var(--dur-fast) var(--ease-out),
+    background var(--dur-fast) var(--ease-out);
+}
+.cc-dropzone:hover {
+  border-color: var(--primary);
+}
+.cc-dropzone--over {
+  border-color: var(--primary);
+  background: var(--orange-wash);
+}
+.cc-dropzone__text {
+  font: var(--type-body-sm);
+  color: var(--ink-2);
+  text-align: center;
+}
+
+.cc-filelist {
+  list-style: none;
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.cc-filelist__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 6px 8px;
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+.cc-filelist__name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: var(--type-body-sm);
+}
+.cc-filelist__size {
+  flex: none;
+  font: var(--type-meta);
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+.cc-filelist__row a.cc-filelist__name {
+  color: var(--ink);
+  text-decoration: none;
+}
+.cc-filelist__row a.cc-filelist__name:hover {
+  color: var(--primary);
+  text-decoration: underline;
+}
+
+/* ---------- The card's hover action ----------
+   One affordance, in the corner the status chip used to occupy. Hidden until
+   the card is hovered so a wall of cards stays quiet, but always reachable by
+   keyboard. */
+.cc-cardaction {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+}
+.cc-cardaction__btn {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--ink-3);
+  cursor: pointer;
+  opacity: 0;
+  transition:
+    opacity var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out),
+    background var(--dur-fast) var(--ease-out);
+}
+.cc-card:hover .cc-cardaction__btn,
+.cc-cardaction__btn:focus-visible {
+  opacity: 1;
+}
+.cc-cardaction__btn:hover {
+  background: var(--hover);
+}
+.cc-cardaction__btn--danger:hover,
+.cc-cardaction__btn--warn:hover {
+  color: var(--danger);
+}
+.cc-cardaction__btn:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* ---------- The prompt, in the detail view ----------
+   .cc-readonly is a single-line field — fixed height, vertically centred — so a
+   multi-line prompt rendered in one looked like a text input with its content
+   cut off. Instructions are the substance of a task and get room to be read. */
+.cc-prompt {
+  padding: 11px 12px;
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--field);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: var(--lh-relaxed);
+  color: var(--ink);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 42vh;
+  overflow-y: auto;
+}
+.cc-prompt--empty {
+  font-family: var(--font-sans);
+  font-size: var(--fs-sm);
+  color: var(--ink-3);
+  font-style: italic;
+}
+
+/* A single quiet line of facts, rather than a three-column grid of mostly
+   em-dashes. Wraps on a narrow dialog instead of squeezing the columns. */
+.cc-metastrip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px var(--space-4);
+  padding-bottom: 2px;
+}
+.cc-metastrip__item {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.cc-metastrip__label {
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--track-wide);
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.cc-metastrip__value {
+  font-size: var(--fs-sm);
+  color: var(--ink);
+}
+.cc-metastrip__value--mono {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+/* ---------- Dialogs: fixed head and foot, scrolling middle ----------
+   The export puts overflow on .cc-dialog itself, so a long task scrolled its
+   own header and actions off screen. Every dialog is now a column whose body
+   is the only thing that moves. */
+.cc-dialog {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  max-height: min(100%, 86vh);
+}
+.cc-dialog__head,
+.cc-dialog__foot {
+  flex: none;
+}
+.cc-dialog__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* ---------- Task dialog header ----------
+   Title first, because that is what the reader came for; the status, the mode,
+   and the identifiers sit under it as supporting detail. */
+.cc-taskhead {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: stretch;
+  /* .cc-dialog__head is a flex row; without this the block shrinks to its
+     content and the close button sits beside the title instead of hard right. */
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.cc-taskhead__top {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+.cc-taskhead__title {
+  flex: 1 1 auto;
+  min-width: 0;
+  font: var(--type-detail-title);
+  letter-spacing: var(--track-tight);
+  text-wrap: pretty;
+}
+.cc-taskhead__meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+}
+.cc-taskhead__id {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--ink-3);
+}
+.cc-taskhead__when {
+  font-size: var(--fs-xs);
+  color: var(--ink-3);
+}
+.cc-taskhead__sep {
+  color: var(--border-2);
+}
+
+/* Status carries its column's colour rather than sitting in a neutral chip. */
+.cc-statuspill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px; /* the export's 4px read as a dot stuck to the word */
+  height: 24px;
+  padding: 0 11px 0 9px;
+  border-radius: var(--radius-pill);
+  background: var(--pill-soft);
+  color: var(--pill);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--track-wide);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.cc-statuspill__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: var(--radius-pill);
+  background: var(--pill);
+  flex: none;
+}
+
+/* Plan mode is a property of the task, not a status — an icon, not a chip. */
+.cc-planmark {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-xs);
+  background: var(--orange-wash-2);
+  color: var(--primary);
+}
+.cc-planmark__tip {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-inset);
+  background: var(--neutral-900);
+  color: var(--neutral-50);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
+  white-space: nowrap;
+  box-shadow: var(--shadow-md);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--dur-fast) var(--ease-out);
+}
+[data-theme="dark"] .cc-planmark__tip {
+  background: var(--neutral-50);
+  color: var(--neutral-900);
+}
+.cc-planmark:hover .cc-planmark__tip {
+  opacity: 1;
+}
+
+/* ---------- Copy the prompt ----------
+   The instructions are the one thing here worth taking elsewhere, so the block
+   offers a copy on hover rather than making the reader select it by hand. */
+.cc-promptwrap {
+  position: relative;
+}
+.cc-promptwrap__copy {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  padding: 0 8px;
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-xs);
+  background: var(--surface);
+  color: var(--ink-2);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
+  cursor: pointer;
+  opacity: 0;
+  transition:
+    opacity var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out);
+}
+.cc-promptwrap:hover .cc-promptwrap__copy,
+.cc-promptwrap__copy:focus-visible {
+  opacity: 1;
+}
+.cc-promptwrap__copy:hover {
+  color: var(--ink);
+  border-color: var(--border-2);
+}
+.cc-promptwrap__copy--done {
+  opacity: 1;
+  color: var(--success);
+  border-color: var(--success);
+}
+
+/* The close button sits hard right in every dialog header and never absorbs
+   space the title could use. */
+.cc-dialog__close {
+  flex: none;
+  margin-left: auto;
+}
+
+/* ---------- Portalled tooltip ----------
+   Rendered into <body> and positioned in viewport coordinates, because the
+   column list scrolls and would otherwise clip anything drawn above a card. */
+.cc-tip {
+  position: fixed;
+  z-index: 200;
+  transform: translate(-50%, -100%);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-inset);
+  background: var(--neutral-900);
+  color: var(--neutral-50);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
+  line-height: 1.4;
+  white-space: nowrap;
+  box-shadow: var(--shadow-md);
+  pointer-events: none;
+}
+.cc-tip--below {
+  transform: translate(-50%, 0);
+}
+[data-theme="dark"] .cc-tip {
+  background: var(--neutral-50);
+  color: var(--neutral-900);
+}
+/* Destructive actions say so in the tooltip, not in the resting icon. */
+.cc-tip--danger,
+.cc-tip--warn {
+  background: var(--danger);
+  color: #ffffff;
+}
+[data-theme="dark"] .cc-tip--danger,
+[data-theme="dark"] .cc-tip--warn {
+  background: var(--danger);
+  color: #ffffff;
+}
+
+/* ---------- Card badge ----------
+   A quiet marker in the card footer. Plan mode is a property of the task, not
+   a call to action, so it sits with the metadata rather than competing with
+   the title. */
+.cc-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 18px;
+  padding: 0 7px;
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface-col);
+  color: var(--ink-2);
+  font-size: var(--fs-2xs);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--track-wide);
+  text-transform: uppercase;
+  white-space: nowrap;
+}

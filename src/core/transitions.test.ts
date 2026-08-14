@@ -32,6 +32,7 @@ function task(id: string, over: Partial<Task> = {}): Task {
     attempts: 0,
     planMode: false,
     sessionId: null,
+    attachments: [],
     ...over,
   };
 }

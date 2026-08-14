@@ -11,6 +11,8 @@ export function Column({
   isTarget,
   onAdd,
   onOpen,
+  onStop,
+  onDelete,
 }: {
   spec: ColumnSpec;
   tasks: Task[];
@@ -29,6 +31,8 @@ export function Column({
   isTarget: boolean;
   onAdd: (spec: ColumnSpec) => void;
   onOpen: (task: Task) => void;
+  onStop: (task: Task) => void;
+  onDelete: (task: Task) => void;
 }) {
   // The column itself is a drop target so an empty column — or the space below
   // the last card — still accepts a drop.
@@ -41,15 +45,19 @@ export function Column({
         <span className="cc-column__name">{spec.label}</span>
         <span className="cc-column__count">{tasks.length}</span>
         <div style={{ flex: "1 1 0%" }} />
-        <button
-          type="button"
-          className="cc-iconbtn cc-iconbtn--bare cc-iconbtn--xs"
-          aria-label={`Add task to ${spec.label}`}
-          title={`Add task to ${spec.label}`}
-          onClick={() => onAdd(spec)}
-        >
-          <PlusIcon />
-        </button>
+        {/* Creating a task straight into review or done would record work that
+            never happened, so only the waiting columns offer it. */}
+        {spec.accepts && (
+          <button
+            type="button"
+            className="cc-iconbtn cc-iconbtn--bare cc-iconbtn--xs"
+            aria-label={`Add task to ${spec.label}`}
+            title={`Add task to ${spec.label}`}
+            onClick={() => onAdd(spec)}
+          >
+            <PlusIcon />
+          </button>
+        )}
       </div>
 
       <div className="cc-column__list" ref={setNodeRef}>
@@ -62,7 +70,9 @@ export function Column({
                   {spec.empty.prompt && <div className="cc-empty__prompt">{spec.empty.prompt}</div>}
                 </div>
               )
-            : tasks.map((task) => <Card key={task.id} task={task} onOpen={onOpen} />)}
+            : tasks.map((task) => (
+                <Card key={task.id} task={task} onOpen={onOpen} onStop={onStop} onDelete={onDelete} />
+              ))}
         </SortableContext>
       </div>
     </section>

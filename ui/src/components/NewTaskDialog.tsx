@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import type { TaskStatus } from "../api.ts";
+import { Switch } from "./Switch.tsx";
+import { FilePicker } from "./FilePicker.tsx";
+import { CloseButton } from "./CloseButton.tsx";
 
 export function NewTaskDialog({
   status,
@@ -10,11 +13,18 @@ export function NewTaskDialog({
   status: TaskStatus;
   columnLabel: string;
   onCancel: () => void;
-  onCreate: (task: { title: string; body: string; planMode: boolean; status: TaskStatus }) => void;
+  onCreate: (task: {
+    title: string;
+    body: string;
+    planMode: boolean;
+    status: TaskStatus;
+    files: File[];
+  }) => void;
 }) {
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [planMode, setPlanMode] = useState(false);
+  const [files, setFiles] = useState<File[]>([]);
   const titleRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => titleRef.current?.focus(), []);
@@ -30,7 +40,7 @@ export function NewTaskDialog({
   const submit = () => {
     const trimmed = title.trim();
     if (!trimmed) return; // core would reject it too; no need to round-trip
-    onCreate({ title: trimmed, body: body.trim(), planMode, status });
+    onCreate({ title: trimmed, body: body.trim(), planMode, status, files });
   };
 
   return (
@@ -44,6 +54,8 @@ export function NewTaskDialog({
       >
         <div className="cc-dialog__head">
           <div className="cc-dialog__title">New task in {columnLabel}</div>
+          <div className="cc-dialog__spacer" />
+          <CloseButton onClose={onCancel} />
         </div>
 
         <div className="cc-dialog__body">
@@ -79,20 +91,23 @@ export function NewTaskDialog({
             />
           </div>
 
-          <label className="cc-switch-row">
+          <FilePicker files={files} onChange={setFiles} />
+
+          {/* Switch leads, copy follows — the control is the thing being set. */}
+          <div className="cc-switch-row">
+            <Switch
+              checked={planMode}
+              onChange={setPlanMode}
+              label="Plan first"
+              describedBy="plan-first-desc"
+            />
             <div className="cc-switch-row__body">
               <div className="cc-switch-row__title">Plan first</div>
-              <div className="cc-switch-row__desc">
+              <div className="cc-switch-row__desc" id="plan-first-desc">
                 Claude presents a plan and waits for approval before changing anything.
               </div>
             </div>
-            <input
-              type="checkbox"
-              checked={planMode}
-              onChange={(e) => setPlanMode(e.target.checked)}
-              aria-label="Plan first"
-            />
-          </label>
+          </div>
         </div>
 
         <div className="cc-dialog__foot">

@@ -19,6 +19,7 @@ function stateWith(tasks: Array<Partial<Task> & { id: string }>): ProjectState {
       attempts: 0,
       planMode: false,
       sessionId: null,
+      attachments: [],
       ...t,
     })),
   };

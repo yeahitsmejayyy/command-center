@@ -1,6 +1,12 @@
 import { existsSync } from "node:fs";
 import { join, normalize } from "node:path";
 import { logFor, type Logger } from "../../adapters/log.ts";
+import {
+  deleteAttachment,
+  deleteTaskAttachments,
+  readAttachment,
+  writeAttachment,
+} from "../../adapters/attachments.ts";
 import { mutate } from "../../adapters/mutate.ts";
 import { clearRuntime, publishRuntime } from "../../adapters/runtime.ts";
 import { readState } from "../../adapters/store.ts";
@@ -139,6 +145,10 @@ async function handle(req: Request, ctx: Context): Promise<Response> {
     if (pathname === "/api/state") return json(await readState(ctx.cwd));
     if (pathname === "/api/stream") return stream(ctx);
     if (pathname === "/api/events" && req.method === "POST") return postEvent(req, ctx);
+
+    const attachment = pathname.match(/^\/api\/tasks\/([^/]+)\/attachments(?:\/([^/]+))?$/);
+    if (attachment) return handleAttachment(req, ctx, attachment[1]!, attachment[2]);
+
     if (pathname.startsWith("/api/")) return fail(404, "NOT_FOUND", `No route for ${pathname}.`, ctx);
 
     return serveUi(pathname, ctx);
@@ -170,8 +180,108 @@ async function postEvent(req: Request, ctx: Context): Promise<Response> {
     return json({ error: result.error, logPath: ctx.log.path }, 409);
   }
 
+  // A deleted task's files have nothing left to belong to. Core does not know
+  // about the filesystem, so the surface that owns the bytes cleans them up.
+  if (event.type === "delete" && typeof event.id === "string") {
+    await deleteTaskAttachments(ctx.cwd, event.id);
+  }
+
   await ctx.broadcast();
   return json({ state: result.state, effects: result.effects });
+}
+
+const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
+
+/**
+ * Upload, download, and remove a task's files.
+ *
+ * The id is generated here, never taken from the uploaded filename — the name
+ * is metadata shown to the user, and letting it reach the filesystem is how a
+ * file called "../../.ssh/authorized_keys" gets written.
+ */
+async function handleAttachment(
+  req: Request,
+  ctx: Context,
+  taskId: string,
+  attachmentId?: string,
+): Promise<Response> {
+  if (req.method === "POST" && !attachmentId) {
+    const form = await req.formData().catch(() => null);
+    const file = form?.get("file");
+    if (!(file instanceof File)) {
+      return fail(400, "NO_FILE", "That upload did not include a file.", ctx);
+    }
+    if (file.size > MAX_ATTACHMENT_BYTES) {
+      return fail(
+        413,
+        "TOO_LARGE",
+        `"${file.name}" is ${(file.size / 1024 / 1024).toFixed(1)} MB. The limit is 25 MB.`,
+        ctx,
+      );
+    }
+
+    const id = `a_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+    await writeAttachment(ctx.cwd, taskId, id, await file.arrayBuffer());
+
+    const result = await mutate(ctx.cwd, {
+      type: "attach",
+      at: Date.now(),
+      id: taskId,
+      attachment: {
+        id,
+        name: file.name || "untitled",
+        mimeType: file.type || "application/octet-stream",
+        size: file.size,
+        addedAt: Date.now(),
+      },
+    });
+
+    if (!result.ok) {
+      await deleteAttachment(ctx.cwd, taskId, id); // do not leave an orphan on disk
+      return json({ error: result.error, logPath: ctx.log.path }, 409);
+    }
+
+    await ctx.broadcast();
+    return json({ state: result.state });
+  }
+
+  if (req.method === "GET" && attachmentId) {
+    const bytes = await readAttachment(ctx.cwd, taskId, attachmentId);
+    if (!bytes) return fail(404, "NOT_FOUND", "That file is no longer on disk.", ctx);
+
+    const state = await readState(ctx.cwd);
+    const meta = state.tasks
+      .find((t) => t.id === taskId)
+      ?.attachments.find((a) => a.id === attachmentId);
+
+    // Always an attachment, never inline: these are files a user dropped in,
+    // and rendering one as HTML in the board's own origin would let it act as
+    // the board. Downloading is the only thing a file needs to do here.
+    return new Response(new Uint8Array(bytes), {
+      headers: {
+        "content-type": meta?.mimeType ?? "application/octet-stream",
+        "content-disposition": `attachment; filename="${(meta?.name ?? attachmentId).replace(/"/g, "")}"`,
+        "content-security-policy": "default-src 'none'; sandbox",
+        "x-content-type-options": "nosniff",
+      },
+    });
+  }
+
+  if (req.method === "DELETE" && attachmentId) {
+    const result = await mutate(ctx.cwd, {
+      type: "detach",
+      at: Date.now(),
+      id: taskId,
+      attachmentId,
+    });
+    if (!result.ok) return json({ error: result.error, logPath: ctx.log.path }, 409);
+
+    await deleteAttachment(ctx.cwd, taskId, attachmentId);
+    await ctx.broadcast();
+    return json({ state: result.state });
+  }
+
+  return fail(405, "BAD_METHOD", `${req.method} is not supported here.`, ctx);
 }
 
 function stream(ctx: Context): Response {

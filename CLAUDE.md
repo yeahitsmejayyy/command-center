@@ -24,7 +24,11 @@ The UI's design system comes from **Claude design** — it is not invented ad ho
 
 ## Commit messages
 
-Every time a roadmap/tracker item is finished, hand Jayyy a commit message for it — no waiting for the end of the milestone.
+**End every turn that changed code with a commit message.** Not only when a
+roadmap item is finished — any turn that leaves the working tree dirty ends with
+a message Jayyy can copy and push. He should never have to ask for one.
+
+If a turn changed nothing, say so instead of inventing a message.
 
 - One line, short and concise. Imperative mood, lowercase, no trailing period.
 - In its own ```bash fenced block so it's one click to copy.

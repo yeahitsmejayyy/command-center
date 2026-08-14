@@ -1,5 +1,6 @@
 import { arrayMove } from "@dnd-kit/sortable";
 import type { Task, TaskStatus } from "../api.ts";
+import { COLUMNS } from "./columns.ts";
 
 /**
  * Where a dragged card ends up.
@@ -48,6 +49,13 @@ export function planDrop(
     ? (overId as TaskStatus)
     : overTask?.status;
   if (!status) return null;
+
+  // Columns to the right of the queue record what the workflow did: advanced,
+  // finished, approved. A card dragged into one would assert something that
+  // never happened. Dragging *out* stays allowed — that is how work is stopped
+  // or a decision is undone — and reordering inside a column is untouched.
+  const target = COLUMNS.find((c) => c.status === status);
+  if (target && !target.accepts && active.status !== status) return null;
 
   if (status === active.status) {
     // Reorder: let the array tell us where the card lands, so direction counts.

@@ -25,3 +25,10 @@ export function projectName(cwd: string): string {
 export function shortId(id: string): string {
   return id.replace(/^t_/, "").slice(0, 8);
 }
+
+/** "12 KB", "1.4 MB" — sizes a person can read at a glance. */
+export function fileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}

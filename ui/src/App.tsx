@@ -18,6 +18,7 @@ import {
   newTaskId,
   sendEvent,
   subscribe,
+  uploadAttachment,
   type Connection,
   type ProjectState,
   type Task,
@@ -27,6 +28,8 @@ import { Column } from "./components/Column.tsx";
 import { DraggedCard } from "./components/Card.tsx";
 import { Header } from "./components/Header.tsx";
 import { NewTaskDialog } from "./components/NewTaskDialog.tsx";
+import { TaskDialog } from "./components/TaskDialog.tsx";
+import { ConfirmDialog } from "./components/ConfirmDialog.tsx";
 import { COLUMNS, COLUMN_STATUSES, type ColumnSpec } from "./lib/columns.ts";
 
 type Theme = "light" | "dark";
@@ -36,6 +39,8 @@ export function App() {
   const [connection, setConnection] = useState<Connection>("connecting");
   const [rejection, setRejection] = useState<string | null>(null);
   const [composing, setComposing] = useState<ColumnSpec | null>(null);
+  const [opened, setOpened] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<Task | null>(null);
   const [theme, setTheme] = useState<Theme>(initialTheme);
   const [dragging, setDragging] = useState<Task | null>(null);
   // Only which column is being aimed at — deliberately not a full preview of
@@ -75,6 +80,38 @@ export function App() {
       setRejection(result.error.message);
     }
   }, []);
+
+  /**
+   * Files are staged in the dialog because a new task has no id yet, and an
+   * attachment needs one. The task is created first, then each file is uploaded
+   * against it; a failed upload reports itself without losing the task.
+   */
+  const createTask = useCallback(
+    async (draft: { title: string; body: string; planMode: boolean; status: TaskStatus; files: File[] }) => {
+      const id = newTaskId();
+      const created = await sendEvent({
+        type: "create",
+        id,
+        title: draft.title,
+        body: draft.body,
+        planMode: draft.planMode,
+        status: draft.status,
+      });
+
+      if (!created.ok) {
+        setRejection(created.error.message);
+        return;
+      }
+      setState(created.state);
+
+      for (const file of draft.files) {
+        const uploaded = await uploadAttachment(id, file);
+        if (uploaded.ok) setState(uploaded.state);
+        else setRejection(uploaded.error.message);
+      }
+    },
+    [],
+  );
 
   const byStatus = useMemo(() => {
     const grouped = new Map<TaskStatus, Task[]>();
@@ -219,7 +256,11 @@ export function App() {
               }
               isTarget={dragging !== null && target === spec.status}
               onAdd={setComposing}
-              onOpen={() => {}}
+              onOpen={(task) => setOpened(task.id)}
+              // Stopping is a move back to the queue: the work is abandoned,
+              // not finished, and the task stays available to start again.
+              onStop={(task) => void apply({ type: "move", id: task.id, to: "queued" })}
+              onDelete={setDeleting}
             />
           ))}
         </main>
@@ -235,14 +276,38 @@ export function App() {
         </DragOverlay>
       </DndContext>
 
+      {/* Read from live state, not a snapshot, so an open task keeps up with
+          changes Claude makes while you are looking at it. */}
+      {opened && state.tasks.some((t) => t.id === opened) && (
+        <TaskDialog
+          task={state.tasks.find((t) => t.id === opened)!}
+          onClose={() => setOpened(null)}
+          onEvent={(event) => void apply(event)}
+          onAttachmentsChanged={() => void reload()}
+        />
+      )}
+
+      {deleting && (
+        <ConfirmDialog
+          title="Delete this task?"
+          detail={`"${deleting.title}" and any files attached to it will be removed. This cannot be undone.`}
+          confirmLabel="Delete"
+          onCancel={() => setDeleting(null)}
+          onConfirm={() => {
+            void apply({ type: "delete", id: deleting.id });
+            setDeleting(null);
+          }}
+        />
+      )}
+
       {composing && (
         <NewTaskDialog
           status={composing.status}
           columnLabel={composing.label}
           onCancel={() => setComposing(null)}
-          onCreate={({ title, body, planMode, status }) => {
+          onCreate={({ title, body, planMode, status, files }) => {
             setComposing(null);
-            void apply({ type: "create", id: newTaskId(), title, body, planMode, status });
+            void createTask({ title, body, planMode, status, files });
           }}
         />
       )}

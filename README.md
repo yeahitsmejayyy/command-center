@@ -83,10 +83,10 @@ No database — JSON files under a lock. No daemon — servers live and die with
 
 ## Deeper
 
-- [SECURITY.md](SECURITY.md) — what it touches, and how to audit it
-- [docs/architecture.md](docs/architecture.md) — the state machine, layer boundaries, on-disk layout
-- [docs/decisions/](docs/decisions/) — why the significant calls were made
-- [docs/build-log/](docs/build-log/) — how it was built, including what broke
-- [CHANGELOG.md](CHANGELOG.md) — including migration from v1
+- [SECURITY.md](SECURITY.md) — what it touches, what it writes, and how to audit it yourself
+- [docs/architecture.md](docs/architecture.md) — the state machine, the layer boundaries, the on-disk layout
+- [docs/decisions/](docs/decisions/) — why the significant calls were made, and what was weighed against them
+- [docs/build-log/](docs/build-log/) — how it was built, in order, including what broke
+- [CHANGELOG.md](CHANGELOG.md) — what changed in 2.0.0, and how to migrate from v1
 
 Licensed under [MIT](LICENSE).

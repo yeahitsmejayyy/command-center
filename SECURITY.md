@@ -40,7 +40,7 @@ cat bin/cmc          # the entire executable surface
 cat hooks/hooks.json # every event it hooks, and the exact command each runs
 ```
 
-There is **no compiled binary**. The plugin ships source, which means what you audit is what runs — see [ADR-001](docs/decisions/001-binary-distribution.md).
+There is **no compiled binary**. The plugin ships source, which means what you audit is what runs: every file that executes is plain TypeScript in `src/`, readable in the repository you installed from. That was a deliberate trade, and the reasoning is written down in [ADR-001](docs/decisions/001-binary-distribution.md).
 
 ## What it reads
 
@@ -114,7 +114,7 @@ ls -R ~/.command-center                       # everything it has stored
 cmc doctor                                    # what it thinks its own state is
 ```
 
-The full architecture, including the layer boundaries that keep this surface small, is in [docs/architecture.md](docs/architecture.md).
+The code is organised so this surface stays small: `src/core/` is pure logic with no I/O at all, `src/adapters/` holds everything that touches the disk or the network, and `src/surfaces/` is the CLI, the hook, and the server. If you want to know what reaches your filesystem, `src/adapters/` is the whole answer. The boundaries are described in full, and enforced by a test that greps the real imports, in [docs/architecture.md](docs/architecture.md).
 
 ## Reporting a problem
 

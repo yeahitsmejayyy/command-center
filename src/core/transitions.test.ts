@@ -11,8 +11,8 @@ import {
 } from "./types.ts";
 
 /**
- * Exhaustive coverage of the transition table in docs/architecture.md.
- * Every (status × event) pair, including the ones that must be rejected.
+ * Exhaustive coverage of the transition table in docs/architecture.md:
+ * every (status × event) pair, including the ones that must be rejected.
  */
 
 const AT = 1_700_000_000_000;

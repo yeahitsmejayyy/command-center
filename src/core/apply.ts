@@ -19,7 +19,8 @@ import {
  * rejection is a value, so callers cannot ignore one by accident. Timestamps and
  * ids arrive on the event, which is what keeps it deterministic under test.
  *
- * The transition table this implements is in docs/architecture.md.
+ * The transition table this implements is in docs/architecture.md, and is
+ * covered exhaustively — including the rejections — by transitions.test.ts.
  */
 export function apply(state: ProjectState, event: Event): Result {
   const parsed = EventSchema.safeParse(event);

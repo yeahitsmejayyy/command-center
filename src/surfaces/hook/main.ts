@@ -181,7 +181,7 @@ async function announcement(cwd: string, port: number, sessionId?: string): Prom
 // Claude Code plumbing
 // ---------------------------------------------------------------------------
 
-/** Verified against Claude Code 2.1.229 — see docs/plugin-platform.md. */
+/** The context-injection shape, verified against Claude Code 2.1.229 — see docs/plugin-platform.md. */
 function emit(additionalContext: string): void {
   process.stdout.write(
     `${JSON.stringify({

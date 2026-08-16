@@ -3,6 +3,8 @@ import type { TaskStatus } from "../api.ts";
 import { Switch } from "./Switch.tsx";
 import { FilePicker } from "./FilePicker.tsx";
 import { CloseButton } from "./CloseButton.tsx";
+import { useSheetGesture } from "../lib/sheetGesture.ts";
+import { useIsSheet } from "../lib/useIsSheet.ts";
 
 export function NewTaskDialog({
   status,
@@ -37,6 +39,10 @@ export function NewTaskDialog({
     return () => window.removeEventListener("keydown", onKey);
   }, [onCancel]);
 
+  // The gesture is live only while the dialog is presented as a sheet.
+  const isSheet = useIsSheet();
+  const sheet = useSheetGesture(onCancel, isSheet);
+
   const submit = () => {
     const trimmed = title.trim();
     if (!trimmed) return; // core would reject it too; no need to round-trip
@@ -44,15 +50,22 @@ export function NewTaskDialog({
   };
 
   return (
-    <div className="cc-overlay" onMouseDown={onCancel}>
+    // On a phone this becomes a bottom sheet — see .cc-sheet in app.css. The
+    // markup is identical; only the presentation changes with the viewport.
+    <div className="cc-overlay cc-overlay--sheet" onMouseDown={onCancel}>
       <div
-        className="cc-dialog"
+        className="cc-dialog cc-dialog--sheet"
+        style={sheet.style}
         role="dialog"
         aria-modal="true"
         aria-label={`New task in ${columnLabel}`}
         onMouseDown={(e) => e.stopPropagation()}
       >
-        <div className="cc-dialog__head">
+        <div className="cc-sheet__grip" {...sheet.handleProps}>
+          <div className="cc-sheet__grabber" aria-hidden="true" />
+        </div>
+
+        <div className="cc-dialog__head" {...sheet.handleProps}>
           <div className="cc-dialog__title">New task in {columnLabel}</div>
           <div className="cc-dialog__spacer" />
           <CloseButton onClose={onCancel} />

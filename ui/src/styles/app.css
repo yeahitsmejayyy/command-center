@@ -519,3 +519,90 @@
     padding: 8vh var(--space-3) var(--space-3);
   }
 }
+
+/* ---------- Bottom sheet ----------
+   On a phone a centred dialog wastes the screen and sits where the thumb is
+   not. Below the breakpoint the new-task dialog becomes a sheet that rises from
+   the bottom edge and fills the screen, leaving a sliver of the board above so
+   it still reads as something laid over the board rather than a new page.
+
+   Same markup either way — only the presentation changes. */
+.cc-sheet__grabber {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  .cc-overlay--sheet {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .cc-dialog--sheet {
+    width: 100%;
+    max-width: none;
+    /* dvh, not vh: iOS Safari's collapsing toolbar would otherwise cut the
+       footer off the bottom of the sheet. */
+    height: 92dvh;
+    max-height: 92dvh;
+    border-radius: var(--radius) var(--radius) 0 0;
+    border-bottom: 0;
+    animation: ccSheetUp var(--dur-slow) var(--ease-out);
+  }
+
+  .cc-sheet__grabber {
+    display: block;
+    flex: none;
+    width: 36px;
+    height: 4px;
+    margin: 8px auto 0;
+    border-radius: var(--radius-pill);
+    background: var(--border-2);
+  }
+
+  /* Clear the home indicator so the primary action is never under it. */
+  .cc-dialog--sheet .cc-dialog__foot {
+    padding-bottom: max(14px, env(safe-area-inset-bottom));
+  }
+}
+
+@keyframes ccSheetUp {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cc-dialog--sheet {
+    animation: none;
+  }
+}
+
+/* The drag surface for the sheet gesture. touch-action tells the browser we
+   handle vertical movement ourselves; without it the page scrolls instead and
+   the sheet never follows the finger. */
+.cc-sheet__grip {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  .cc-sheet__grip {
+    display: block;
+    flex: none;
+    padding: 6px 0 2px;
+    touch-action: none;
+    cursor: grab;
+  }
+  .cc-sheet__grip:active {
+    cursor: grabbing;
+  }
+  /* The header drags too — a grabber alone is a small target for a thumb. */
+  .cc-dialog--sheet .cc-dialog__head {
+    touch-action: none;
+  }
+  .cc-sheet__grabber {
+    margin: 0 auto;
+  }
+}

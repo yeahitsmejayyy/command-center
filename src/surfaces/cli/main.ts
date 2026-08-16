@@ -9,6 +9,7 @@ import { TaskStatusSchema, type Event, type ProjectState, type Task } from "../.
 import { flagBool, flagString, parseArgs, type Args } from "./args.ts";
 import { runDiagnostics, renderDiagnostics } from "./doctor.ts";
 import { renderBoard, renderTaskForClaude } from "./render.ts";
+import pkg from "../../../package.json";
 
 /**
  * The CLI surface: arguments in, one core event out, adapter persists it.
@@ -100,9 +101,13 @@ async function main(argv: string[]): Promise<number> {
   }
 }
 
+// Read rather than hardcoded: the manifests and the tag all derive from
+// package.json, and a second copy of the number would eventually disagree.
+const { version } = pkg as { version: string };
+
 function info(args: Args): number {
   if (flagBool(args, "version")) {
-    process.stdout.write("command-center 2.0.0-dev\n");
+    process.stdout.write(`command-center ${version}\n`);
     return EXIT_OK;
   }
   process.stdout.write(USAGE);

@@ -56,6 +56,13 @@ if (!entry) {
   }
 }
 
+// `cmc --version` reads package.json, so it is user-visible output. If it drifts
+// from the manifests, users are told a version we never shipped.
+const pkg = await readJson<{ version?: string }>("package.json");
+if (pkg.version !== plugin.version) {
+  note(`Version mismatch: plugin.json says ${plugin.version}, package.json says ${pkg.version} — this is what \`cmc --version\` prints.`);
+}
+
 if (!marketplace.description) {
   note("marketplace.json needs a top-level description to pass --strict validation.");
 }

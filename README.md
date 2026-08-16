@@ -1,17 +1,14 @@
 <p align="center">
-  <img src="cover.png" alt="command center — queue the work, Claude works on it" width="100%" />
-</p>
-
-<p align="center">
-  <!-- CI badge: GitHub only serves workflow badges for public repos, so this
-       renders broken while the repo is private. Uncomment when it goes public.
   <a href="https://github.com/yeahitsmejayyy/command-center/actions/workflows/ci.yml">
     <img src="https://github.com/yeahitsmejayyy/command-center/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
-  -->
   <a href="LICENSE">
     <img src="https://img.shields.io/badge/license-MIT-FF6100" alt="MIT licensed" /></a>
   <img src="https://img.shields.io/badge/Bun-%E2%89%A5%201.3-FF6100?logo=bun&logoColor=white" alt="Requires Bun 1.3 or newer" />
   <img src="https://img.shields.io/badge/Claude%20Code-plugin-FF6100" alt="Claude Code plugin" />
+</p>
+
+<p align="center">
+  <img src="cover.png" alt="command center — queue the work, Claude works on it" width="100%" />
 </p>
 
 <p align="center">

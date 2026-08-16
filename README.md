@@ -3,9 +3,21 @@
 </p>
 
 <p align="center">
+  <!-- CI badge: GitHub only serves workflow badges for public repos, so this
+       renders broken while the repo is private. Uncomment when it goes public.
+  <a href="https://github.com/yeahitsmejayyy/command-center/actions/workflows/ci.yml">
+    <img src="https://github.com/yeahitsmejayyy/command-center/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
+  -->
+  <a href="LICENSE">
+    <img src="https://img.shields.io/badge/license-MIT-FF6100" alt="MIT licensed" /></a>
+  <img src="https://img.shields.io/badge/Bun-%E2%89%A5%201.3-FF6100?logo=bun&logoColor=white" alt="Requires Bun 1.3 or newer" />
+  <img src="https://img.shields.io/badge/Claude%20Code-plugin-FF6100" alt="Claude Code plugin" />
+</p>
+
+<p align="center">
   <strong>Queue the work. Claude works on it.</strong><br />
-  A local task board that keeps your kanban queue and your Claude Code session in lockstep —
-  running entirely on your machine, with no accounts, no cloud, and no background daemon.
+  A local task board for Claude Code. Add tasks, drag them into the queue, and Claude picks up
+  the next one. Everything runs on your machine — no accounts, no cloud, nothing left running.
 </p>
 
 ---

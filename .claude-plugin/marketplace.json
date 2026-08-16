@@ -1,6 +1,6 @@
 {
   "name": "command-center",
-  "description": "command-center — a local-first task queue companion for Claude Code.",
+  "description": "command-center — a local task board for Claude Code.",
   "owner": {
     "name": "Jayyy",
     "url": "https://github.com/yeahitsmejayyy"
@@ -9,10 +9,16 @@
     {
       "name": "command-center",
       "source": "./",
-      "description": "A per-project task queue that keeps a local kanban board and your Claude Code session in lockstep. Runs entirely on your machine.",
+      "description": "A local task board for Claude Code. You queue the work, Claude works on it.",
       "version": "2.0.0",
       "license": "MIT",
-      "keywords": ["tasks", "kanban", "queue", "local-first", "workflow"]
+      "keywords": [
+        "tasks",
+        "kanban",
+        "queue",
+        "local-first",
+        "workflow"
+      ]
     }
   ]
 }

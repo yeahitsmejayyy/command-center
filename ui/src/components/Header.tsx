@@ -1,4 +1,6 @@
 import type { Connection } from "../api.ts";
+import { Logo } from "./Logo.tsx";
+import { useTooltip } from "./Tooltip.tsx";
 import { projectName } from "../lib/format.ts";
 
 /**
@@ -28,19 +30,12 @@ export function Header({
   return (
     <header className="cc-header">
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
-        <span
-          style={{ font: "var(--type-app-name)", letterSpacing: "var(--track-tight)", whiteSpace: "nowrap" }}
-        >
-          Command Center
-        </span>
+        <Logo />
       </div>
 
       <div className="cc-header__divider" />
 
-      <div className="cc-repochip" title={cwd}>
-        <FolderIcon />
-        <span className="cc-repochip__name">{projectName(cwd)}</span>
-      </div>
+      <ProjectChip cwd={cwd} />
 
       <ConnectionChip connection={connection} />
 
@@ -56,11 +51,29 @@ export function Header({
         {theme === "dark" ? <SunIcon /> : <MoonIcon />}
       </button>
 
-      <button type="button" className="cc-btn cc-btn--primary" onClick={onNewTask}>
+      {/* Hidden on phones — the floating button takes over there. */}
+      <button type="button" className="cc-btn cc-btn--primary cc-hide-sm" onClick={onNewTask}>
         New Task
         {newTaskHint && <kbd className="cc-kbd cc-kbd--onprimary">{newTaskHint}</kbd>}
       </button>
     </header>
+  );
+}
+
+/**
+ * The project the board is showing. The name is dropped on narrow screens
+ * where it would crowd the header, so the tooltip carries the full path — it is
+ * the only place the folder is identified once the label is gone.
+ */
+function ProjectChip({ cwd }: { cwd: string }) {
+  const tip = useTooltip(cwd);
+
+  return (
+    <div className="cc-repochip" tabIndex={0} aria-label={cwd} {...tip.handlers}>
+      <FolderIcon />
+      <span className="cc-repochip__name cc-hide-sm">{projectName(cwd)}</span>
+      {tip.node}
+    </div>
   );
 }
 

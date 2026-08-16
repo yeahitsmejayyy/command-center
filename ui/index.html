@@ -3,7 +3,16 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>command-center</title>
+    <title>command center</title>
+    <!--
+      The SVG adapts to the browser's colour scheme. The PNG fallback (Safari
+      does not use SVG favicons) is the orange tile rather than the transparent
+      ink mark, which would vanish against a dark tab strip.
+    -->
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/icon-192.png" sizes="192x192" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon-180.png" />
+    <meta name="theme-color" content="#FF6100" />
   </head>
   <body>
     <div id="root"></div>

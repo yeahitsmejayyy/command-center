@@ -3,6 +3,7 @@ import { attachmentUrl, removeAttachment, uploadAttachment, type BoardEvent, typ
 import { fileSize, relativeTime, shortId } from "../lib/format.ts";
 import { CopyButton } from "./CopyButton.tsx";
 import { CloseButton } from "./CloseButton.tsx";
+import { useTooltip } from "./Tooltip.tsx";
 import { COLUMNS } from "../lib/columns.ts";
 
 /**
@@ -73,14 +74,7 @@ export function TaskDialog({
                 {column?.label ?? task.status}
               </span>
 
-              {task.planMode && (
-                <span className="cc-planmark" aria-label="Plan mode">
-                  <BookIcon />
-                  <span className="cc-planmark__tip" role="tooltip">
-                    Plan mode — Claude plans before changing anything
-                  </span>
-                </span>
-              )}
+              {task.planMode && <PlanMark />}
 
               <span className="cc-taskhead__id">{shortId(task.id)}</span>
               <span className="cc-taskhead__sep">·</span>
@@ -270,6 +264,18 @@ function actionsFor(task: Task): Action[] {
  * One fact about the task. Only facts that exist are shown — a row of "—"
  * placeholders tells the reader nothing and crowds out what does.
  */
+/** Plan mode, with a tooltip that escapes the dialog's clipped bounds. */
+function PlanMark() {
+  const tip = useTooltip("Plan mode — Claude plans before changing anything");
+
+  return (
+    <span className="cc-planmark" tabIndex={0} aria-label="Plan mode" {...tip.handlers}>
+      <BookIcon />
+      {tip.node}
+    </span>
+  );
+}
+
 function BookIcon() {
   return (
     <svg

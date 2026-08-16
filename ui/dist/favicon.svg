@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-1.25 -1.25 50.5 50.5" width="48" height="48" role="img" aria-label="command center">
+  <title>command center</title>
+  <!--
+    The exported favicon.svg referenced a class "i" for its strokes but shipped
+    no rule defining it, so the frame and caret rendered with no stroke at all —
+    only the orange block was visible. The rule below is what was missing, with
+    the colour-scheme switch the asset notes describe: ink on a light tab strip,
+    near-white on a dark one.
+  -->
+  <style>
+    .i { stroke: #0A0A0A; }
+    @media (prefers-color-scheme: dark) {
+      .i { stroke: #FAFAFA; }
+    }
+  </style>
+  <rect class="i" x="1" y="5" width="46" height="38" rx="11" fill="none" stroke-width="4.5" />
+  <path class="i" d="M14 18.5 L20 24 L14 29.5" fill="none" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" />
+  <rect x="25.5" y="17" width="8.5" height="14" rx="2" fill="#FF6100" />
+</svg>

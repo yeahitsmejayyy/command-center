@@ -325,32 +325,6 @@
   background: var(--orange-wash-2);
   color: var(--primary);
 }
-.cc-planmark__tip {
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 5;
-  padding: var(--space-1) var(--space-2);
-  border-radius: var(--radius-inset);
-  background: var(--neutral-900);
-  color: var(--neutral-50);
-  font-size: var(--fs-xs);
-  font-weight: var(--fw-medium);
-  white-space: nowrap;
-  box-shadow: var(--shadow-md);
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity var(--dur-fast) var(--ease-out);
-}
-[data-theme="dark"] .cc-planmark__tip {
-  background: var(--neutral-50);
-  color: var(--neutral-900);
-}
-.cc-planmark:hover .cc-planmark__tip {
-  opacity: 1;
-}
-
 /* ---------- Copy the prompt ----------
    The instructions are the one thing here worth taking elsewhere, so the block
    offers a copy on hover rather than making the reader select it by hand. */
@@ -464,4 +438,84 @@
   margin-left: 8px;
   border-color: rgb(255 255 255 / 0.35);
   color: rgb(255 255 255 / 0.85);
+}
+
+/* ---------- Logo ---------- */
+.cc-logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--ink);
+  flex: none;
+}
+.cc-logo__word {
+  font: var(--type-app-name);
+  font-size: var(--fs-md);
+  letter-spacing: var(--track-snug);
+  white-space: nowrap;
+}
+
+/* ---------- Dialogs sit above centre ----------
+   Dead centre puts a dialog lower than the eye expects and leaves the board
+   framed unevenly. The design already ships this treatment as a variant; every
+   dialog uses it. */
+.cc-overlay {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 12vh var(--board-gutter) var(--board-gutter);
+}
+.cc-dialog {
+  /* Room for the offset above, so a tall dialog still fits on screen. */
+  max-height: min(82vh, calc(100vh - 16vh));
+}
+
+/* ---------- Floating new-task button ----------
+   A phone's header is the furthest point from a thumb, so on narrow screens
+   the primary action moves to the corner the hand already rests in. */
+.cc-fab {
+  position: fixed;
+  right: max(var(--space-5), env(safe-area-inset-right));
+  bottom: max(var(--space-5), env(safe-area-inset-bottom));
+  z-index: 90;
+  display: none;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--primary);
+  color: var(--primary-foreground);
+  box-shadow: var(--shadow-lg);
+  cursor: pointer;
+  transition:
+    background var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
+}
+.cc-fab:hover {
+  background: var(--primary-hover);
+}
+.cc-fab:active {
+  transform: scale(0.96);
+}
+.cc-fab:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-lg), var(--focus-ring);
+}
+
+/* ---------- Narrow screens ---------- */
+@media (max-width: 767px) {
+  .cc-hide-sm {
+    display: none !important;
+  }
+  .cc-fab {
+    display: grid;
+  }
+  /* One column at a time, filling the width, rather than five squeezed ones. */
+  .cc-column {
+    min-width: min(var(--column-min-width), 86vw);
+  }
+  .cc-overlay {
+    padding: 8vh var(--space-3) var(--space-3);
+  }
 }

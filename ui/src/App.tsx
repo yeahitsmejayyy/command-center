@@ -30,6 +30,7 @@ import { Header } from "./components/Header.tsx";
 import { NewTaskDialog } from "./components/NewTaskDialog.tsx";
 import { TaskDialog } from "./components/TaskDialog.tsx";
 import { ConfirmDialog } from "./components/ConfirmDialog.tsx";
+import { NewTaskButton } from "./components/NewTaskButton.tsx";
 import { COLUMNS, COLUMN_STATUSES, type ColumnSpec } from "./lib/columns.ts";
 import { useShortcuts, type Shortcut } from "./lib/shortcuts.ts";
 
@@ -311,6 +312,8 @@ export function App() {
           onAttachmentsChanged={() => void reload()}
         />
       )}
+
+      <NewTaskButton onClick={() => setComposing(COLUMNS[0]!)} />
 
       {deleting && (
         <ConfirmDialog

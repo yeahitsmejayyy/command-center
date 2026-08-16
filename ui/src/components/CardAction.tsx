@@ -1,5 +1,4 @@
-import { useState } from "react";
-import { createPortal } from "react-dom";
+import { useTooltip } from "./Tooltip.tsx";
 
 /**
  * The one action a card offers without being opened.
@@ -23,18 +22,7 @@ export function CardAction({
   onAct: () => void;
   children: React.ReactNode;
 }) {
-  const [tip, setTip] = useState<{ x: number; y: number; below: boolean } | null>(null);
-
-  const show = (target: HTMLElement) => {
-    const r = target.getBoundingClientRect();
-    // Prefer above; flip under when the card sits near the top of the viewport.
-    const below = r.top < 44;
-    setTip({
-      x: Math.round(r.left + r.width / 2),
-      y: Math.round(below ? r.bottom + 6 : r.top - 6),
-      below,
-    });
-  };
+  const tip = useTooltip(label, "danger");
 
   return (
     <span className="cc-cardaction">
@@ -47,28 +35,14 @@ export function CardAction({
         onKeyDown={(e) => e.stopPropagation()}
         onClick={(e) => {
           e.stopPropagation();
-          setTip(null);
+          tip.hide();
           onAct();
         }}
-        onPointerEnter={(e) => show(e.currentTarget)}
-        onPointerLeave={() => setTip(null)}
-        onFocus={(e) => show(e.currentTarget)}
-        onBlur={() => setTip(null)}
+        {...tip.handlers}
       >
         {children}
       </button>
-
-      {tip &&
-        createPortal(
-          <span
-            role="tooltip"
-            className={`cc-tip cc-tip--${tone}${tip.below ? " cc-tip--below" : ""}`}
-            style={{ left: tip.x, top: tip.y }}
-          >
-            {label}
-          </span>,
-          document.body,
-        )}
+      {tip.node}
     </span>
   );
 }

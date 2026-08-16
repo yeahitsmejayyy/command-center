@@ -77,4 +77,4 @@ No database — JSON files under a lock. No daemon — servers live and die with
 - [docs/build-log/](docs/build-log/) — how it was built, including what broke
 - [CHANGELOG.md](CHANGELOG.md) — including migration from v1
 
-MIT licensed.
+Licensed under [MIT](LICENSE).

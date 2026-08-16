@@ -2,6 +2,7 @@
   "name": "command-center",
   "version": "2.0.0-dev",
   "description": "Per-project task queue companion for Claude Code.",
+  "license": "MIT",
   "type": "module",
   "private": true,
   "scripts": {

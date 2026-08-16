@@ -11,7 +11,7 @@ The project is called **command-center**. Full stop.
 ## Ground rules
 
 - `PLAN.md` at the repo root is the build plan and entry point. Follow its execution protocol: one milestone at a time, stop at every 🚪 GATE, keep `.tracker/roadmap.json` updated continuously.
-- v1 reference (read-only, never modify): `/Users/yeahitsmejayyy/Documents/Development/2026/_projects/cc-command-center`
+- v1 is kept as a read-only local reference — consult it, never modify it. Its repository is private.
 
 ## Design system
 

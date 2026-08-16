@@ -10,7 +10,11 @@ export default defineConfig({
     emptyOutDir: true,
     // The board is served from loopback by a process on the same machine.
     // Sourcemaps cost nothing here and make a production bug debuggable.
-    sourcemap: true,
+    // No sourcemap in the shipped bundle. It is committed to the repo, so it
+    // would be a 677 KB file rewritten on every UI change — churn in every
+    // diff, for a map of code that is already public in src/. Build locally
+    // with `--sourcemap` on the rare occasion the bundle needs debugging.
+    sourcemap: false,
   },
   server: {
     // `bun run dev` proxies to whichever server the project has running.

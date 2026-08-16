@@ -3,6 +3,7 @@ import {
   DragOverlay,
   KeyboardSensor,
   PointerSensor,
+  MeasuringStrategy,
   closestCorners,
   useSensor,
   useSensors,
@@ -195,6 +196,20 @@ export function App() {
     if (!task || !landing) return;
     if (landing.status === task.status && landing.order === task.order) return;
 
+    // Settle the board in the same frame dnd-kit releases its transforms. The
+    // server's reply then confirms what is already on screen instead of
+    // causing a second, visible move.
+    setState((current) =>
+      current
+        ? {
+            ...current,
+            tasks: current.tasks.map((t) =>
+              t.id === id ? { ...t, status: landing.status, order: landing.order } : t,
+            ),
+          }
+        : current,
+    );
+
     // One event either way: `move` carries the position, so a cross-column drop
     // lands exactly where it was dropped rather than at whatever index its old
     // order happened to imply.
@@ -253,6 +268,14 @@ export function App() {
         // Corners rather than centres: with tall cards, the pointer is often
         // past a card's centre while still clearly above it.
         collisionDetection={closestCorners}
+        // Cards are not a uniform height — some carry a body, a badge, an
+        // avatar. verticalListSortingStrategy works out displacement from
+        // measured rects, and with the default measuring those rects are taken
+        // once at drag start. Anything below a card that grew or shrank is then
+        // displaced by a stale amount, which is why neighbours animated in one
+        // direction and snapped in the other. Re-measuring keeps the maths
+        // honest in both.
+        measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
         onDragStart={onDragStart}
         onDragOver={onDragOver}
         onDragCancel={endDrag}

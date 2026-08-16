@@ -18,14 +18,37 @@ jobs:
       # Frozen so CI installs exactly what a user's machine will: Claude Code
       # runs `bun install --frozen-lockfile --ignore-scripts` when it caches the
       # plugin, and a lockfile that only resolves loosely would hide a break.
-      - name: Install dependencies
+      - name: Install runtime dependencies
         run: bun install --frozen-lockfile
+
+      # The UI keeps its own manifest so users never download the build
+      # toolchain — but `bun test` sweeps the whole repo, and the board's tests
+      # import from ui/node_modules. Without this the suite fails on a module
+      # that is not missing so much as never installed.
+      - name: Install UI build dependencies
+        run: bun install --frozen-lockfile --cwd ui
 
       - name: Typecheck
         run: bun run typecheck
 
+      - name: Typecheck the UI
+        run: bunx tsc --noEmit --project ui/tsconfig.json
+
       - name: Test
         run: bun test
+
+      # The board ships prebuilt: Claude Code installs plugins with
+      # --ignore-scripts, so Vite never runs on a user's machine. A stale
+      # committed bundle would serve a board that does not match the source,
+      # and nothing else would notice.
+      - name: Verify the committed UI bundle is current
+        run: |
+          bun run --cwd ui build
+          if ! git diff --quiet -- ui/dist; then
+            echo "::error::ui/dist is stale. Run 'bun run --cwd ui build' and commit the result."
+            git diff --stat -- ui/dist
+            exit 1
+          fi
 
       # The plugin ships source, so the manifests are the build artifact.
       - name: Check manifests

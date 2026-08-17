@@ -19,6 +19,16 @@ export type TaskStatus = z.infer<typeof TaskStatusSchema>;
 export const TERMINAL_STATUSES: readonly TaskStatus[] = ["awaiting-review", "done", "skipped"];
 
 /**
+ * Statuses where a task's content is still the user's to change.
+ *
+ * Once work starts, the instructions are the brief Claude was handed — editing
+ * them underneath a running session means the task on the board is no longer
+ * the task being worked, and nothing would say so. Past that, a finished task's
+ * content is the record of what was actually done. Reopen it to edit it.
+ */
+export const EDITABLE_STATUSES: readonly TaskStatus[] = ["backlog", "queued"];
+
+/**
  * A file that travels with a task.
  *
  * The bytes live on disk next to the rest of the project's state; the task only
@@ -137,6 +147,7 @@ export const ERROR_CODES = [
   "E_NO_ACTIVE_TASK",
   "E_NOTHING_TO_REVIEW",
   "E_EMPTY_QUEUE",
+  "E_NOT_EDITABLE",
 ] as const;
 export type ErrorCode = (typeof ERROR_CODES)[number];
 

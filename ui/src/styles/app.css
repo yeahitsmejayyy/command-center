@@ -188,6 +188,20 @@
   max-height: 42vh;
   overflow-y: auto;
 }
+/* The instructions open the editor when clicked, so they have to look like
+   they can be. A text cursor and a hairline that answers on hover — the same
+   language the inputs use — rather than anything button-shaped. */
+.cc-prompt--editable {
+  cursor: text;
+}
+.cc-prompt--editable:hover {
+  border-color: var(--border-2);
+}
+.cc-prompt--editable:focus-visible {
+  outline: 2px solid var(--orange-ring);
+  outline-offset: 2px;
+  border-color: var(--orange-edge);
+}
 .cc-prompt--empty {
   font-family: var(--font-sans);
   font-size: var(--fs-sm);

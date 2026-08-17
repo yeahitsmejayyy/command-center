@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { apply } from "./apply.ts";
 import {
+  EDITABLE_STATUSES,
   TERMINAL_STATUSES,
   TaskStatusSchema,
   activeTask,
@@ -284,12 +285,13 @@ describe("revise", () => {
 });
 
 // ---------------------------------------------------------------------------
-// update / delete / reorder — legal from every status
+// update / attach / detach — only while the task is still the user's to change
+// delete / reorder — legal from every status
 // ---------------------------------------------------------------------------
 
 describe("update", () => {
-  test("edits content from any status", () => {
-    for (const status of ALL) {
+  test("edits content from an editable status", () => {
+    for (const status of EDITABLE_STATUSES) {
       const r = ok(apply(stateOf([taskIn("t1", status)]), {
         type: "update", at: LATER, id: "t1", title: "new title", body: "new body",
       }));
@@ -297,6 +299,33 @@ describe("update", () => {
       expect(find(r.state, "t1").title).toBe("new title");
       expect(find(r.state, "t1").status).toBe(status); // never changes status
     }
+  });
+
+  test("refuses once the task has left the backlog or queue", () => {
+    for (const status of ALL.filter((s) => !EDITABLE_STATUSES.includes(s))) {
+      const e = err(apply(stateOf([taskIn("t1", status)]), {
+        type: "update", at: LATER, id: "t1", title: "new title",
+      }));
+
+      expect(e.code).toBe("E_NOT_EDITABLE");
+      expect(e.taskId).toBe("t1");
+    }
+  });
+
+  test("a refused edit changes nothing", () => {
+    const before = stateOf([taskIn("t1", "in-progress", { title: "keep" })]);
+    err(apply(before, { type: "update", at: LATER, id: "t1", title: "clobbered" }));
+
+    expect(find(before, "t1").title).toBe("keep");
+    expect(before.version).toBe(1);
+  });
+
+  test("a task moved back to the backlog is editable again", () => {
+    const running = stateOf([taskIn("t1", "in-progress")]);
+    const parked = ok(apply(running, { type: "move", at: LATER, id: "t1", to: "backlog" })).state;
+    const r = ok(apply(parked, { type: "update", at: LATER, id: "t1", title: "now allowed" }));
+
+    expect(find(r.state, "t1").title).toBe("now allowed");
   });
 
   test("leaves omitted fields alone", () => {
@@ -318,6 +347,71 @@ describe("update", () => {
     const before = stateOf([taskIn("t1", "queued")]);
     expect(err(apply(before, { type: "update", at: LATER, id: "t1", title: "  " })).code)
       .toBe("E_INVALID_INPUT");
+  });
+});
+
+const FILE = {
+  id: "a1",
+  name: "notes.txt",
+  mimeType: "text/plain",
+  size: 12,
+  addedAt: AT,
+};
+
+describe("attach", () => {
+  test("adds a file while the task is editable", () => {
+    for (const status of EDITABLE_STATUSES) {
+      const r = ok(apply(stateOf([taskIn("t1", status)]), {
+        type: "attach", at: LATER, id: "t1", attachment: FILE,
+      }));
+
+      expect(find(r.state, "t1").attachments).toHaveLength(1);
+    }
+  });
+
+  test("refuses once the task has left the backlog or queue", () => {
+    for (const status of ALL.filter((s) => !EDITABLE_STATUSES.includes(s))) {
+      const e = err(apply(stateOf([taskIn("t1", status)]), {
+        type: "attach", at: LATER, id: "t1", attachment: FILE,
+      }));
+
+      expect(e.code).toBe("E_NOT_EDITABLE");
+    }
+  });
+
+  test("refuses the same file twice", () => {
+    const before = stateOf([taskIn("t1", "backlog", { attachments: [FILE] })]);
+    expect(err(apply(before, { type: "attach", at: LATER, id: "t1", attachment: FILE })).code)
+      .toBe("E_DUPLICATE_ID");
+  });
+});
+
+describe("detach", () => {
+  test("removes a file while the task is editable", () => {
+    for (const status of EDITABLE_STATUSES) {
+      const r = ok(apply(stateOf([taskIn("t1", status, { attachments: [FILE] })]), {
+        type: "detach", at: LATER, id: "t1", attachmentId: "a1",
+      }));
+
+      expect(find(r.state, "t1").attachments).toHaveLength(0);
+    }
+  });
+
+  test("refuses once the task has left the backlog or queue", () => {
+    for (const status of ALL.filter((s) => !EDITABLE_STATUSES.includes(s))) {
+      const e = err(apply(stateOf([taskIn("t1", status, { attachments: [FILE] })]), {
+        type: "detach", at: LATER, id: "t1", attachmentId: "a1",
+      }));
+
+      expect(e.code).toBe("E_NOT_EDITABLE");
+    }
+  });
+
+  test("removing a file that is not there is a no-op, not an error", () => {
+    const before = stateOf([taskIn("t1", "backlog")]);
+    const r = ok(apply(before, { type: "detach", at: LATER, id: "t1", attachmentId: "ghost" }));
+
+    expect(r.state.version).toBe(before.version);
   });
 });
 

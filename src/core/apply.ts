@@ -1,4 +1,5 @@
 import {
+  EDITABLE_STATUSES,
   EventSchema,
   TERMINAL_STATUSES,
   activeTask,
@@ -119,6 +120,7 @@ function applyMove(state: ProjectState, e: Extract<ParsedEvent, { type: "move" }
 function applyUpdate(state: ProjectState, e: Extract<ParsedEvent, { type: "update" }>): Result {
   const task = state.tasks.find((t) => t.id === e.id);
   if (!task) return notFound(e.id);
+  if (!isEditable(task)) return locked(task);
 
   const updated: Task = {
     ...task,
@@ -141,6 +143,7 @@ function applyDelete(state: ProjectState, e: Extract<ParsedEvent, { type: "delet
 function applyAttach(state: ProjectState, e: Extract<ParsedEvent, { type: "attach" }>): Result {
   const task = state.tasks.find((t) => t.id === e.id);
   if (!task) return notFound(e.id);
+  if (!isEditable(task)) return locked(task);
   if (task.attachments.some((a) => a.id === e.attachment.id)) {
     return reject("E_DUPLICATE_ID", `That file is already attached to "${task.title}".`, e.id);
   }
@@ -152,6 +155,7 @@ function applyAttach(state: ProjectState, e: Extract<ParsedEvent, { type: "attac
 function applyDetach(state: ProjectState, e: Extract<ParsedEvent, { type: "detach" }>): Result {
   const task = state.tasks.find((t) => t.id === e.id);
   if (!task) return notFound(e.id);
+  if (!isEditable(task)) return locked(task);
   if (!task.attachments.some((a) => a.id === e.attachmentId)) return ok(state, []);
 
   const updated: Task = {
@@ -304,6 +308,19 @@ function reject(code: DomainError["code"], message: string, taskId?: string): Re
 
 function notFound(id: string): Result {
   return reject("E_TASK_NOT_FOUND", `No task with id "${id}".`, id);
+}
+
+/** Content is the user's to change only before the work starts. */
+function isEditable(task: Task): boolean {
+  return EDITABLE_STATUSES.includes(task.status);
+}
+
+function locked(task: Task): Result {
+  return reject(
+    "E_NOT_EDITABLE",
+    `"${task.title}" has already left the queue, so its details are fixed. Move it back to the backlog to change them.`,
+    task.id,
+  );
 }
 
 function conflict(active: Task): Result {

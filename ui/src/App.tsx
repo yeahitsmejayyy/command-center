@@ -73,15 +73,17 @@ export function App() {
     }
   }, []);
 
-  const apply = useCallback(async (event: Parameters<typeof sendEvent>[0]) => {
+  /** Resolves false when core refused, so a caller can keep its form open. */
+  const apply = useCallback(async (event: Parameters<typeof sendEvent>[0]): Promise<boolean> => {
     const result = await sendEvent(event);
     if (result.ok) {
       setState(result.state);
       setRejection(null);
-    } else {
-      // Core owns the wording — it explains the rule that was broken.
-      setRejection(result.error.message);
+      return true;
     }
+    // Core owns the wording — it explains the rule that was broken.
+    setRejection(result.error.message);
+    return false;
   }, []);
 
   /**
@@ -331,7 +333,7 @@ export function App() {
         <TaskDialog
           task={state.tasks.find((t) => t.id === opened)!}
           onClose={() => setOpened(null)}
-          onEvent={(event) => void apply(event)}
+          onEvent={apply}
           onAttachmentsChanged={() => void reload()}
         />
       )}

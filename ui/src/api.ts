@@ -15,6 +15,17 @@ export type TaskStatus =
   | "done"
   | "skipped";
 
+/**
+ * Where a task's details are still the user's to change. Mirrors
+ * EDITABLE_STATUSES in src/core/types.ts — core is what enforces it; this only
+ * decides whether the board offers the control.
+ */
+export const EDITABLE_STATUSES: readonly TaskStatus[] = ["backlog", "queued"];
+
+export function isEditable(task: Task): boolean {
+  return EDITABLE_STATUSES.includes(task.status);
+}
+
 export interface Attachment {
   id: string;
   name: string;

@@ -30,6 +30,8 @@ Usage: cmc <command> [options]
 Tasks
   add <title>          Add a task     [--body <text>] [--plan] [--queued]
   list                 Show the board [--json]
+  edit <task>          Change a backlog or queued task
+                       [--title <text>] [--body <text>] [--plan] [--no-plan]
   move <task> <status> Move a task to backlog|queued|in-progress|awaiting-review|done|skipped
 
 Working the queue
@@ -73,6 +75,8 @@ async function main(argv: string[]): Promise<number> {
       return addTask(cwd, args);
     case "list":
       return listBoard(cwd, args);
+    case "edit":
+      return editTask(cwd, args);
     case "move":
       return moveTask(cwd, args);
     case "advance":
@@ -146,6 +150,50 @@ async function listBoard(cwd: string, args: Args): Promise<number> {
 
   process.stdout.write(`${renderBoard(state)}\n`);
   return EXIT_OK;
+}
+
+/**
+ * Change a task's details.
+ *
+ * Whether the task is still editable is core's call, not this function's — it
+ * builds the event and reports what came back. Omitted flags are left alone
+ * rather than blanked, so editing one field never quietly clears another.
+ */
+async function editTask(cwd: string, args: Args): Promise<number> {
+  const [ref] = args.positional;
+  if (!ref) {
+    fail("edit needs a task.", 'Try: cmc edit a1b2c3 --title "A clearer title"');
+    return EXIT_USAGE;
+  }
+
+  const title = flagString(args, "title");
+  const body = flagString(args, "body");
+  // --plan and --no-plan are opposite intents; absent both, plan mode is untouched.
+  const plan = flagBool(args, "plan") ? true : flagBool(args, "no-plan") ? false : undefined;
+
+  if (title === undefined && body === undefined && plan === undefined) {
+    fail(
+      "edit needs something to change.",
+      "Pass --title, --body, --plan, or --no-plan.",
+    );
+    return EXIT_USAGE;
+  }
+
+  const state = await readState(cwd);
+  const resolved = resolveTask(state, ref);
+  if ("error" in resolved) {
+    fail(resolved.error, resolved.hint);
+    return EXIT_FAILED;
+  }
+
+  return runEvent(cwd, {
+    type: "update",
+    at: now(),
+    id: resolved.task.id,
+    ...(title === undefined ? {} : { title }),
+    ...(body === undefined ? {} : { body }),
+    ...(plan === undefined ? {} : { planMode: plan }),
+  });
 }
 
 async function moveTask(cwd: string, args: Args): Promise<number> {

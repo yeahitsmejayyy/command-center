@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.1.0
+
+### Changed
+
+- **The instructions open the editor when you click them.** They are the thing you come to a task to change, so the text itself is the control. Copying still copies — the copy button sits outside the clickable area.
+- **Closing an edit with unsaved changes asks first.** All four ways out — Escape, the close button, clicking outside, and Cancel — now warn rather than discarding silently. Answering "Discard" from the close button closes the dialog; from Cancel it returns you to the task. Whitespace alone is not treated as a change, so the warning only appears when something real would be lost.
+
 ## 2.0.0
 
 A rebuild. Everything v1 proved is intact — local-first, JSON files under a lock, no database, no daemon, the same task lifecycle. What changed is the seams around it.

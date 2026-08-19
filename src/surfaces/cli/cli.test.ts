@@ -366,3 +366,28 @@ describe("cleanup", () => {
     expect(await Bun.file(runtimePath).exists()).toBe(false);
   });
 });
+
+describe("advance tells the agent how to hand the task back", () => {
+  /**
+   * The slash command says to run `cmc finish`, but that instruction is read
+   * once and then buried under however much work the task takes. What the
+   * agent sees *last* before starting is this payload, so the payload has to
+   * carry the next step itself.
+   */
+  test("the started task carries the finish instruction", async () => {
+    await run("add", "Add a health check", "--body", "Return 200 with uptime.", "--queued");
+    const { stdout } = await run("advance");
+
+    expect(stdout).toContain("Add a health check");
+    expect(stdout).toContain("Return 200 with uptime.");
+    expect(stdout).toContain("cmc finish");
+  });
+
+  test("the instruction does not appear when nothing started", async () => {
+    await run("add", "Parked", "--queued");
+    await run("advance");
+    const { stdout } = await run("list");
+
+    expect(stdout).not.toContain("cmc finish");
+  });
+});

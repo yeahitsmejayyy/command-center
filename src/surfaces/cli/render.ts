@@ -62,5 +62,17 @@ export function renderTaskForClaude(task: Task): string {
   }
 
   sections.push(task.body || "(no description)");
+
+  // The slash command already says to run `finish`, but that is read once and
+  // then buried under however much work the task takes. This payload is the
+  // last thing the agent sees before starting, so it carries the next step too.
+  sections.push(
+    "",
+    "---",
+    "",
+    "When the work is done, run `cmc finish` to move this to awaiting review, " +
+      "then wait for the user's verdict rather than starting the next task.",
+  );
+
   return sections.join("\n");
 }

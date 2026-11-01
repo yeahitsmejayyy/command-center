@@ -5,6 +5,7 @@ import {
   activeTask,
   type DomainError,
   type Effect,
+  type ErrorCode,
   type Event,
   type ParsedEvent,
   type ProjectState,
@@ -197,35 +198,57 @@ function applyAdvance(state: ProjectState, e: Extract<ParsedEvent, { type: "adva
 }
 
 function applyFinish(state: ProjectState, e: Extract<ParsedEvent, { type: "finish" }>): Result {
-  const active = activeTask(state);
-  if (!active) {
-    return reject("E_NO_ACTIVE_TASK", "No task is in progress, so there is nothing to finish.");
-  }
+  const found = subject(
+    state,
+    e.id,
+    "in-progress",
+    activeTask,
+    "E_NO_ACTIVE_TASK",
+    "No task is in progress, so there is nothing to finish.",
+  );
+  if ("error" in found) return found.error;
 
-  const finished = transition(active, "awaiting-review", e.at);
+  const finished = transition(found.task, "awaiting-review", e.at);
   return ok(commit(state, replace(state.tasks, finished), e.at), [
     { type: "task-finished", task: finished },
   ]);
 }
 
 function applyApprove(state: ProjectState, e: Extract<ParsedEvent, { type: "approve" }>): Result {
-  const review = oldestAwaitingReview(state);
-  if (!review) return reject("E_NOTHING_TO_REVIEW", "No task is awaiting review.");
+  const found = subject(
+    state,
+    e.id,
+    "awaiting-review",
+    oldestAwaitingReview,
+    "E_NOTHING_TO_REVIEW",
+    "No task is awaiting review.",
+  );
+  if ("error" in found) return found.error;
 
-  const approved = transition(review, "done", e.at);
+  const approved = transition(found.task, "done", e.at);
   return ok(commit(state, replace(state.tasks, approved), e.at), [
     { type: "task-approved", task: approved },
   ]);
 }
 
 function applyRevise(state: ProjectState, e: Extract<ParsedEvent, { type: "revise" }>): Result {
-  const review = oldestAwaitingReview(state);
-  if (!review) return reject("E_NOTHING_TO_REVIEW", "No task is awaiting review.");
+  const found = subject(
+    state,
+    e.id,
+    "awaiting-review",
+    oldestAwaitingReview,
+    "E_NOTHING_TO_REVIEW",
+    "No task is awaiting review.",
+  );
+  if ("error" in found) return found.error;
 
+  // Naming a task does not license a second running one: M10 keeps the
+  // single-in-progress invariant. Lifting this belongs with the concurrency
+  // limit that replaces it — see M11 in PLAN.md and ADR-004.
   const active = activeTask(state);
   if (active) return conflict(active);
 
-  const revised = transition(review, "in-progress", e.at);
+  const revised = transition(found.task, "in-progress", e.at);
   return ok(commit(state, replace(state.tasks, revised), e.at), [
     { type: "task-revised", task: revised },
   ]);
@@ -275,6 +298,51 @@ function oldestAwaitingReview(state: ProjectState): Task | undefined {
   return [...state.tasks]
     .filter((t) => t.status === "awaiting-review")
     .sort((a, b) => (a.finishedAt ?? 0) - (b.finishedAt ?? 0))[0];
+}
+
+/** Status wording for conflict messages, written for a confused human. */
+const STATUS_PHRASE: Record<TaskStatus, string> = {
+  backlog: "in the backlog",
+  queued: "queued",
+  "in-progress": "in progress",
+  "awaiting-review": "awaiting review",
+  done: "done",
+  skipped: "skipped",
+};
+
+/**
+ * The task a lifecycle verb acts on.
+ *
+ * With no id the verb picks its own subject, which is what every caller written
+ * before M10 relies on. With one, a task in the wrong state is a *conflict*
+ * rather than a miss: it is on the board, it just cannot move from where it is,
+ * and saying "no such task" about a task the user can see would be a lie.
+ */
+function subject(
+  state: ProjectState,
+  id: string | undefined,
+  required: TaskStatus,
+  fallback: (s: ProjectState) => Task | undefined,
+  emptyCode: Extract<ErrorCode, "E_NO_ACTIVE_TASK" | "E_NOTHING_TO_REVIEW">,
+  emptyMessage: string,
+): { task: Task } | { error: Result } {
+  if (id === undefined) {
+    const found = fallback(state);
+    return found ? { task: found } : { error: reject(emptyCode, emptyMessage) };
+  }
+
+  const named = state.tasks.find((t) => t.id === id);
+  if (!named) return { error: notFound(id) };
+  if (named.status !== required) {
+    return {
+      error: reject(
+        "E_CONFLICT",
+        `"${named.title}" is ${STATUS_PHRASE[named.status]}, not ${STATUS_PHRASE[required]}.`,
+        named.id,
+      ),
+    };
+  }
+  return { task: named };
 }
 
 function nextOrder(state: ProjectState, status: TaskStatus): number {

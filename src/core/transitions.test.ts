@@ -285,6 +285,111 @@ describe("revise", () => {
 });
 
 // ---------------------------------------------------------------------------
+// The same three verbs, naming their subject explicitly (M10).
+// Omitting the id must keep the behaviour covered above, so each block
+// re-asserts the default alongside the addressed case.
+// ---------------------------------------------------------------------------
+
+describe("finish by id", () => {
+  test("finishes the named task", () => {
+    const r = ok(apply(stateOf([taskIn("t1", "in-progress")]), { type: "finish", at: LATER, id: "t1" }));
+
+    expect(find(r.state, "t1").status).toBe("awaiting-review");
+    expect(r.effects).toContainEqual({ type: "task-finished", task: find(r.state, "t1") });
+  });
+
+  test("rejects an id that is not on the board", () => {
+    const e = err(apply(stateOf([taskIn("t1", "in-progress")]), { type: "finish", at: LATER, id: "nope" }));
+
+    expect(e.code).toBe("E_TASK_NOT_FOUND");
+  });
+
+  test("a task that exists but is not running is a conflict, not a miss", () => {
+    for (const status of ALL.filter((s) => s !== "in-progress")) {
+      const e = err(apply(stateOf([taskIn("t1", status)]), { type: "finish", at: LATER, id: "t1" }));
+
+      expect(e.code).toBe("E_CONFLICT");
+      expect(e.taskId).toBe("t1");
+    }
+  });
+
+  test("picks the named task out of several, leaving the rest alone", () => {
+    const before = stateOf([taskIn("running", "in-progress"), taskIn("waiting", "queued")]);
+    const r = ok(apply(before, { type: "finish", at: LATER, id: "running" }));
+
+    expect(find(r.state, "running").status).toBe("awaiting-review");
+    expect(find(r.state, "waiting").status).toBe("queued");
+  });
+});
+
+describe("approve by id", () => {
+  test("approves the named task rather than the oldest", () => {
+    const before = stateOf([
+      taskIn("older", "awaiting-review", { finishedAt: AT }),
+      taskIn("newer", "awaiting-review", { finishedAt: AT + 5000 }),
+    ]);
+    const r = ok(apply(before, { type: "approve", at: LATER, id: "newer" }));
+
+    expect(find(r.state, "newer").status).toBe("done");
+    expect(find(r.state, "older").status).toBe("awaiting-review");
+  });
+
+  test("without an id, still takes the oldest", () => {
+    const before = stateOf([
+      taskIn("older", "awaiting-review", { finishedAt: AT }),
+      taskIn("newer", "awaiting-review", { finishedAt: AT + 5000 }),
+    ]);
+    const r = ok(apply(before, { type: "approve", at: LATER }));
+
+    expect(find(r.state, "older").status).toBe("done");
+    expect(find(r.state, "newer").status).toBe("awaiting-review");
+  });
+
+  test("a task not awaiting review is a conflict", () => {
+    for (const status of ALL.filter((s) => s !== "awaiting-review")) {
+      const e = err(apply(stateOf([taskIn("t1", status)]), { type: "approve", at: LATER, id: "t1" }));
+
+      expect(e.code).toBe("E_CONFLICT");
+    }
+  });
+
+  test("rejects an id that is not on the board", () => {
+    const e = err(apply(stateOf([taskIn("t1", "awaiting-review")]), { type: "approve", at: LATER, id: "nope" }));
+
+    expect(e.code).toBe("E_TASK_NOT_FOUND");
+  });
+});
+
+describe("revise by id", () => {
+  test("revises the named task rather than the oldest", () => {
+    const before = stateOf([
+      taskIn("older", "awaiting-review", { finishedAt: AT }),
+      taskIn("newer", "awaiting-review", { finishedAt: AT + 5000 }),
+    ]);
+    const r = ok(apply(before, { type: "revise", at: LATER, id: "newer" }));
+
+    expect(find(r.state, "newer").status).toBe("in-progress");
+    expect(find(r.state, "older").status).toBe("awaiting-review");
+  });
+
+  // M10 keeps the single-in-progress invariant: naming a task does not license
+  // a second running one. M11 is what lifts this, with a real concurrency limit.
+  test("still refuses while another task is running, even when named", () => {
+    const before = stateOf([taskIn("a", "in-progress"), taskIn("b", "awaiting-review")]);
+    const e = err(apply(before, { type: "revise", at: LATER, id: "b" }));
+
+    expect(e.code).toBe("E_CONFLICT");
+    expect(e.taskId).toBe("a");
+  });
+
+  test("rejects an id that is not on the board", () => {
+    const e = err(apply(stateOf([taskIn("t1", "awaiting-review")]), { type: "revise", at: LATER, id: "nope" }));
+
+    expect(e.code).toBe("E_TASK_NOT_FOUND");
+  });
+});
+
+// ---------------------------------------------------------------------------
 // update / attach / detach — only while the task is still the user's to change
 // delete / reorder — legal from every status
 // ---------------------------------------------------------------------------

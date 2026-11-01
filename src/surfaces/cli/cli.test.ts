@@ -383,6 +383,14 @@ describe("advance tells the agent how to hand the task back", () => {
     expect(stdout).toContain("cmc finish");
   });
 
+  test("the instruction names the task, so it stays correct on a busy board", async () => {
+    await run("add", "Add a health check", "--queued");
+    const { stdout } = await run("advance");
+
+    const started = (await board()).tasks.find((t) => t.status === "in-progress")!;
+    expect(stdout).toContain(`cmc finish ${started.id}`);
+  });
+
   test("the instruction does not appear when nothing started", async () => {
     await run("add", "Parked", "--queued");
     await run("advance");

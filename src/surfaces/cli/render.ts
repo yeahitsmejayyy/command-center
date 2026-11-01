@@ -65,12 +65,14 @@ export function renderTaskForClaude(task: Task): string {
 
   // The slash command already says to run `finish`, but that is read once and
   // then buried under however much work the task takes. This payload is the
-  // last thing the agent sees before starting, so it carries the next step too.
+  // last thing the agent sees before starting, so it carries the next step too
+  // — and names the task, so the instruction stays correct on a board that has
+  // more than one thing on it.
   sections.push(
     "",
     "---",
     "",
-    "When the work is done, run `cmc finish` to move this to awaiting review, " +
+    `When the work is done, run \`cmc finish ${task.id}\` to move this to awaiting review, ` +
       "then wait for the user's verdict rather than starting the next task.",
   );
 

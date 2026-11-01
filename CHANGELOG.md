@@ -1,5 +1,15 @@
 # Changelog
 
+<!-- Unshipped work goes under an "## Unreleased" heading here. Renaming that
+     heading to a version number — and bumping the three manifests to match —
+     is what cuts a release. -->
+
+## 2.1.1
+
+### Fixed
+
+- **A finished task no longer sits in progress waiting to be noticed.** The instruction to run `cmc finish` lived only in the slash-command preamble, read once and then buried under however much work the task took. It now travels on the task payload itself, so it is the last thing read before the work starts rather than the first.
+
 ## 2.1.0
 
 ### Changed

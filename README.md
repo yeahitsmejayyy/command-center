@@ -56,9 +56,18 @@ The board and the session stay in step in both directions: what Claude does show
 |---|---|
 | `cmc list` | Show the board (`--json` for scripting) |
 | `cmc add "…"` | Add a task (`--body`, `--plan`, `--queued`) |
-| `cmc advance` / `finish` / `approve` / `revise` | Work the queue by hand |
+| `cmc advance` / `finish` / `approve` / `revise` | Work the queue by hand (each takes a task id) |
+| `cmc concurrency [n]` | Show or set how many tasks may run at once |
 | `cmc doctor` | Diagnose problems, with the fix for each |
 | `cmc cleanup` | Stop an unused board server |
+
+### More than one task at a time
+
+By default Claude works one task at a time, and that is the right setting for almost everything — most queues are a review gate with a human behind it, and fanning out in front of one moves the queue rather than shortening it.
+
+When you do have a batch of genuinely independent, mechanical work, `cmc concurrency 2` lets two tasks run at once. The session that dispatches them calls `advance` for each, hands each sub-agent its task body and id, and calls `cmc finish <id>` when that agent reports back. Sub-agents never write to the board themselves.
+
+**The board has no collision protection.** It does not know which files a task touches, so two tasks editing the same file will both write and the second one wins. Keep parallel tasks non-overlapping, or give each agent its own git worktree. [docs/architecture.md](docs/architecture.md) has the detail.
 
 ## When something looks wrong
 
@@ -76,7 +85,7 @@ Logs are per project: `cmc doctor` prints the path.
 
 ## What it is not
 
-No database — JSON files under a lock. No daemon — servers live and die with your sessions. Loopback only. One task in progress at a time, on purpose.
+No database — JSON files under a lock. No daemon — servers live and die with your sessions. Loopback only. One task in progress at a time unless you raise the limit yourself — and even then, no collision protection and no dependency tracking: the board schedules tasks, it does not understand them.
 
 ## Deeper
 

@@ -1,6 +1,6 @@
 # ADR-004 — Tasks are addressable; agents are not modelled
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-11-01
 **Decides:** how several sub-agents work the board at once — what identifies the worker, which verb names which task, and what the board refuses to know
 

@@ -59,13 +59,15 @@ type ProjectState = {
 
 **`activeTaskId` is gone.** v1 stored it on the queue *and* derived the same fact from `status === "in-progress"`, then had to keep the two in sync on every mutation — every transition carried a line like `if (q.activeTaskId === t.id) q.activeTaskId = null`. Two sources of truth for one fact is a desync waiting to happen. The active task is now derived: `tasks.find(t => t.status === "in-progress")`. Nothing to keep in sync, nothing to get wrong.
 
-**Moving a task into `in-progress` while another is active is now rejected, not silently permitted.** v1 quietly demoted the running task back to `queued`. Since the entire premise is that Claude works one task at a time, a second task entering `in-progress` is a mistake worth naming: it returns `E_CONFLICT` identifying the task already running. The board asks you to finish or move that task first, rather than reshuffling behind your back.
+**Moving a task into `in-progress` beyond the limit is now rejected, not silently permitted.** v1 quietly demoted the running task back to `queued`. A second task entering `in-progress` is a mistake worth naming: it returns `E_CONFLICT` identifying the task already running. The board asks you to finish or move that task first, rather than reshuffling behind your back.
+
+The limit is the `concurrency` preference, and it **defaults to one** — so by default this is exactly the single-task rule it started as. Raising it is deliberate and per project.
 
 ### Invariants
 
 Every one of these holds before and after every `apply()`, and each is asserted in the tests:
 
-1. **At most one task is `in-progress`.**
+1. **At most `concurrency` tasks are `in-progress`,** where `concurrency` is the per-project preference and defaults to 1. Core cannot read preferences, so the limit arrives on the event; an event that omits it means 1.
 2. `startedAt` is non-null exactly when the task has entered `in-progress` at least once.
 3. `finishedAt` is non-null exactly when the task is in a terminal-ish state (`awaiting-review`, `done`, `skipped`), and null otherwise.
 4. `attempts` never decreases, and increments exactly on entry into `in-progress`.
@@ -83,16 +85,20 @@ Every mutation is an event. There is no other way to change state.
 | `create` | `id, title, body, planMode?, status?` | add a task (defaults to `backlog`) |
 | `update` | `id, title?, body?, planMode?` | edit content, never status |
 | `delete` | `id` | remove a task |
-| `move` | `id, to: TaskStatus` | the general escape hatch — the board's drag-and-drop |
+| `move` | `id, to: TaskStatus, concurrency?` | the general escape hatch — the board's drag-and-drop |
 | `reorder` | `id, order` | reposition within a column |
-| `advance` | — | start the next queued task |
-| `finish` | — | the active task is done being worked |
-| `approve` | — | accept the task under review |
-| `revise` | — | send the task under review back for more work |
+| `advance` | `agent?, concurrency?` | start the next queued task |
+| `finish` | `id?` | a task is done being worked |
+| `approve` | `id?` | accept a task under review |
+| `revise` | `id?, concurrency?` | send a task under review back for more work |
 
 Every event also carries `at: number` (the timestamp) and, where relevant, `sessionId`.
 
-`advance`, `finish`, `approve`, and `revise` take **no task id**: they resolve their own target from state, which is where v1 put that logic too. Selection is a business rule, so it lives in core, not in the CLI.
+**`id` on a lifecycle verb is optional.** Omitted, the verb resolves its own target from state — `finish` takes a running task, `approve` and `revise` the oldest awaiting review — which is where v1 put that logic too. Selection is a business rule, so it lives in core, not in the CLI. Supplied, it names one task, which is the only way to be unambiguous once more than one task is in flight. A named task in the wrong state is an `E_CONFLICT` naming its actual state, never `E_TASK_NOT_FOUND`: it is on the board, it simply cannot move from where it is.
+
+**`concurrency` rides on every event that can put a task into `in-progress`** — `advance`, `revise`, `move`, and `create`. It defaults to 1, so an event built by a caller that has never heard of the preference means precisely what it used to mean.
+
+**`agent` is a label, not an identity.** The dispatcher chooses the string; the board stores and displays it and draws no conclusions from it. See ADR-004 for why nothing better is available.
 
 ---
 
@@ -272,6 +278,40 @@ A session killed outright never fires the hook, so its id lingers and holds the 
 ### The rule the hooks obey
 
 **Never break the session.** A task board failing is an inconvenience; a hook that errors, hangs, or blocks startup is a broken editor. Every path exits 0, including a missing Bun, a missing entry point, unparseable stdin, and an unknown event. Anything the user needs to know is said through injected context, not through a failure.
+
+---
+
+## Working several tasks at once
+
+Raising `concurrency` lets more than one task sit in `in-progress`. The board does not dispatch anything itself, so the pattern matters.
+
+### The orchestrator is the only writer
+
+```
+cmc concurrency 2
+cmc advance --agent worker-1      # prints task A's body and id
+cmc advance --agent worker-2      # prints task B's body and id
+  ... hand each body to a sub-agent, keep its task id ...
+cmc finish <A>                    # when worker-1 reports back
+cmc finish <B>                    # when worker-2 reports back
+```
+
+The session that calls `advance` hands each sub-agent its task body and id, and calls `finish <id>` when that agent reports back. **Sub-agents never write to the board.**
+
+This is not a style preference. A sub-agent shares its orchestrator's session id and pid, so if two of them wrote concurrently the board could not attribute either write — and a sub-agent that dies mid-task leaves a row nothing will ever clear, because nothing can tell it apart from a live one. The orchestrator already knows what it dispatched and whether it came back. ADR-004 records the probe behind this.
+
+`--agent` is how a human reading the board can tell the rows apart. It is a label the orchestrator picks, nothing the board discovers.
+
+### There is no collision protection
+
+**The board does not know what files a task touches.** It will happily run two tasks that edit the same lines, and the second write wins. Nothing warns you and nothing merges.
+
+Two mitigations, both yours to apply:
+
+- **Dispatch non-overlapping tasks.** The practical one. Independent, mechanical work — a run of separate documents, a sweep across unrelated modules — parallelises safely. Two tasks editing one file do not.
+- **A git worktree per agent.** Real isolation, at the cost of a merge afterwards.
+
+Dependency tracking between tasks is out of scope, deliberately and permanently: it would mean the board understanding the work, and it does not.
 
 ---
 

@@ -4,6 +4,21 @@
      heading to a version number — and bumping the three manifests to match —
      is what cuts a release. -->
 
+## Unreleased
+
+### Added
+
+- **Lifecycle verbs take a task.** `cmc finish <task>`, `cmc approve <task>`, and `cmc revise <task>` act on the task you name. Without one they behave exactly as before — `finish` takes the running task, `approve` the oldest in review — which was fine until two things were waiting and the board had to guess. Short id prefixes work, as they already do for `edit` and `move`.
+- **Several tasks can run at once.** `cmc concurrency 2` raises how many tasks may be in progress; `cmc concurrency` shows the current limit. The default is one, and at one nothing has changed — the refusals are the same refusals, word for word.
+- **`cmc advance --agent <label>`** records who is working a task. It is a label the dispatcher chooses, not an identity the board discovers: a sub-agent shares its orchestrator's session id, so there is nothing to discover.
+- **The board shows the agent label** on a card instead of the generic "Claude", so several cards in progress can be told apart at a glance.
+
+### Changed
+
+- **Sending work back counts as starting it.** `cmc revise` used to refuse outright whenever anything was in progress. It now checks the same limit as `advance`, so at the default it refuses in exactly the same cases.
+- **A task that cannot move says so.** Naming a task in the wrong state reports a conflict and explains which state it is in, rather than claiming no such task exists.
+- **The session announcement handles several running tasks.** It lists each one with its id and label, tells you to finish them by id, and — when the limit leaves room — says how many more can start. It used to assume exactly one task was running.
+
 ## 2.1.1
 
 ### Fixed

@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { paths } from "./paths.ts";
-import { readPrefs, setEnabled } from "./prefs.ts";
+import { readPrefs, setConcurrency, setEnabled } from "./prefs.ts";
 
 const CWD = "/Users/j/dev/proj";
 let home: string;
@@ -29,7 +29,7 @@ describe("readPrefs", () => {
    * appear, and defaulting to enabled would launch a server nobody asked for.
    */
   test("a project that has never been asked is undecided", async () => {
-    expect(await readPrefs(CWD)).toEqual({ enabled: null });
+    expect(await readPrefs(CWD)).toEqual({ enabled: null, concurrency: 1 });
   });
 
   test("remembers an enable", async () => {
@@ -62,7 +62,7 @@ describe("readPrefs", () => {
     mkdirSync(dirname(path), { recursive: true });
     writeFileSync(path, "{ corrupted");
 
-    expect(await readPrefs(CWD)).toEqual({ enabled: null });
+    expect(await readPrefs(CWD)).toEqual({ enabled: null, concurrency: 1 });
   });
 
   test("a file with an unexpected shape reads as undecided", async () => {
@@ -70,6 +70,55 @@ describe("readPrefs", () => {
     mkdirSync(dirname(path), { recursive: true });
     writeFileSync(path, JSON.stringify({ enabled: "yes please" }));
 
-    expect(await readPrefs(CWD)).toEqual({ enabled: null });
+    expect(await readPrefs(CWD)).toEqual({ enabled: null, concurrency: 1 });
+  });
+});
+
+describe("concurrency", () => {
+  test("a project that was never asked runs one task at a time", async () => {
+    expect((await readPrefs(CWD)).concurrency).toBe(1);
+  });
+
+  test("remembers a raised limit", async () => {
+    await setConcurrency(CWD, 3);
+
+    expect((await readPrefs(CWD)).concurrency).toBe(3);
+  });
+
+  /**
+   * Each setter writes the whole file, so the one it is not changing has to
+   * survive the round trip. Enabling a project used to reset every other field
+   * by construction.
+   */
+  test("enabling a project keeps its limit", async () => {
+    await setConcurrency(CWD, 4);
+    await setEnabled(CWD, true);
+
+    expect(await readPrefs(CWD)).toEqual({ enabled: true, concurrency: 4 });
+  });
+
+  test("raising the limit keeps the enable", async () => {
+    await setEnabled(CWD, true);
+    await setConcurrency(CWD, 2);
+
+    expect(await readPrefs(CWD)).toEqual({ enabled: true, concurrency: 2 });
+  });
+
+  /**
+   * Setting a limit is not an answer to "do you want this here?". The hook
+   * offers that choice exactly once, and this must not consume it.
+   */
+  test("a limit set before the project was asked leaves it undecided", async () => {
+    await setConcurrency(CWD, 2);
+
+    expect(await readPrefs(CWD)).toEqual({ enabled: null, concurrency: 2 });
+  });
+
+  test("a limit below one is rejected by the schema and reads as undecided", async () => {
+    const path = paths.prefs(CWD);
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, JSON.stringify({ enabled: true, updatedAt: 1, concurrency: 0 }));
+
+    expect(await readPrefs(CWD)).toEqual({ enabled: null, concurrency: 1 });
   });
 });

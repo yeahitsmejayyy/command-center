@@ -57,6 +57,17 @@ export const TaskSchema = z.object({
   attempts: z.number().int().nonnegative(),
   planMode: z.boolean(),
   sessionId: z.string().nullable(),
+  /**
+   * Who is working this task, as named by whoever dispatched it.
+   *
+   * A label, deliberately not an identity: a sub-agent shares the
+   * orchestrator's session id and pid, so nothing the board can observe
+   * distinguishes them (ADR-004 records the probe). The orchestrator chooses
+   * this string, and the board only ever displays it back.
+   *
+   * Defaulted so a board written before labels existed still parses.
+   */
+  agent: z.string().nullable().default(null),
   // Defaulted so a board written before attachments existed still parses.
   attachments: z.array(AttachmentSchema).default([]),
 });
@@ -74,9 +85,29 @@ export function emptyState(cwd: string): ProjectState {
   return { version: 0, cwd, updatedAt: 0, tasks: [] };
 }
 
+/**
+ * How many tasks may run at once before `advance` refuses.
+ *
+ * One keeps the behaviour every caller written before M11 relies on. The limit
+ * travels on the event rather than being read here, because core has no I/O —
+ * the preference is loaded at the surface and passed in.
+ */
+export const DEFAULT_CONCURRENCY = 1;
+
 /** The active task is derived, never stored — v1 kept both and had to sync them. */
 export function activeTask(state: ProjectState): Task | undefined {
   return state.tasks.find((t) => t.status === "in-progress");
+}
+
+/**
+ * Every running task, in board order.
+ *
+ * Separate from `activeTask` rather than replacing it: every existing caller
+ * assumes one task and reads the singular form, and quietly widening that
+ * return type would break them in ways the compiler could not see.
+ */
+export function activeTasks(state: ProjectState): Task[] {
+  return state.tasks.filter((t) => t.status === "in-progress");
 }
 
 // ---------------------------------------------------------------------------
@@ -85,9 +116,20 @@ export function activeTask(state: ProjectState): Task | undefined {
 
 const base = { at: z.number().int().nonnegative() };
 
+/**
+ * The concurrency limit, as supplied by the caller.
+ *
+ * Carried on every event that can put a task into in-progress, so core can
+ * check it without reading a preference file. Defaulted to 1 so that an event
+ * built before M11 — or by a surface that has not been taught to pass it —
+ * means exactly what it used to mean.
+ */
+const limit = { concurrency: z.number().int().min(1).default(DEFAULT_CONCURRENCY) };
+
 export const EventSchema = z.discriminatedUnion("type", [
   z.object({
     ...base,
+    ...limit,
     type: z.literal("create"),
     id: z.string().min(1),
     title: z.string().trim().min(1),
@@ -118,6 +160,7 @@ export const EventSchema = z.discriminatedUnion("type", [
   }),
   z.object({
     ...base,
+    ...limit,
     type: z.literal("move"),
     id: z.string().min(1),
     to: TaskStatusSchema,
@@ -125,13 +168,20 @@ export const EventSchema = z.discriminatedUnion("type", [
     order: z.number().optional(),
   }),
   z.object({ ...base, type: z.literal("reorder"), id: z.string().min(1), order: z.number() }),
-  z.object({ ...base, type: z.literal("advance"), sessionId: z.string().nullable().default(null) }),
+  z.object({
+    ...base,
+    ...limit,
+    type: z.literal("advance"),
+    sessionId: z.string().nullable().default(null),
+    /** A caller-chosen label for whoever will work it. Not an identity. */
+    agent: z.string().min(1).nullable().default(null),
+  }),
   // `id` omitted keeps the historical behaviour — the verb picks its own
   // subject off the board. Supplied, it names one. Optional rather than
   // required so every caller written before this still means what it meant.
   z.object({ ...base, type: z.literal("finish"), id: z.string().min(1).optional() }),
   z.object({ ...base, type: z.literal("approve"), id: z.string().min(1).optional() }),
-  z.object({ ...base, type: z.literal("revise"), id: z.string().min(1).optional() }),
+  z.object({ ...base, ...limit, type: z.literal("revise"), id: z.string().min(1).optional() }),
 ]);
 export type Event = z.input<typeof EventSchema>;
 type ParsedEvent = z.infer<typeof EventSchema>;

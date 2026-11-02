@@ -3,6 +3,7 @@ import {
   EventSchema,
   TERMINAL_STATUSES,
   activeTask,
+  activeTasks,
   type DomainError,
   type Effect,
   type ErrorCode,
@@ -66,8 +67,8 @@ function applyCreate(state: ProjectState, e: Extract<ParsedEvent, { type: "creat
     return reject("E_DUPLICATE_ID", `A task with id "${e.id}" already exists.`, e.id);
   }
   if (e.status === "in-progress") {
-    const active = activeTask(state);
-    if (active) return conflict(active);
+    const running = atCapacity(state, e.concurrency);
+    if (running) return conflict(running);
   }
 
   const task: Task = {
@@ -82,6 +83,7 @@ function applyCreate(state: ProjectState, e: Extract<ParsedEvent, { type: "creat
     attempts: e.status === "in-progress" ? 1 : 0,
     planMode: e.planMode,
     sessionId: null,
+    agent: null,
     attachments: [],
   };
 
@@ -102,8 +104,8 @@ function applyMove(state: ProjectState, e: Extract<ParsedEvent, { type: "move" }
   }
 
   if (e.to === "in-progress") {
-    const active = activeTask(state);
-    if (active && active.id !== task.id) return conflict(active);
+    const running = atCapacity(state, e.concurrency, task.id);
+    if (running) return conflict(running);
   }
 
   // A drop carries a position; a status change on its own does not.
@@ -175,21 +177,19 @@ function applyReorder(state: ProjectState, e: Extract<ParsedEvent, { type: "reor
 }
 
 function applyAdvance(state: ProjectState, e: Extract<ParsedEvent, { type: "advance" }>): Result {
-  const active = activeTask(state);
-  if (active) {
-    return reject(
-      "E_ALREADY_ACTIVE",
-      `"${active.title}" is already in progress. Finish it before starting another.`,
-      active.id,
-    );
-  }
+  const running = atCapacity(state, e.concurrency);
+  if (running) return alreadyActive(running);
 
   const next = [...state.tasks]
     .filter((t) => t.status === "queued")
     .sort((a, b) => a.order - b.order)[0];
   if (!next) return reject("E_EMPTY_QUEUE", "Nothing is queued, so there is nothing to start.");
 
-  const started: Task = { ...transition(next, "in-progress", e.at), sessionId: e.sessionId };
+  const started: Task = {
+    ...transition(next, "in-progress", e.at),
+    sessionId: e.sessionId,
+    agent: e.agent,
+  };
   const tasks = replace(state.tasks, started);
   return ok(commit(state, tasks, e.at), [
     { type: "task-started", task: started },
@@ -242,11 +242,11 @@ function applyRevise(state: ProjectState, e: Extract<ParsedEvent, { type: "revis
   );
   if ("error" in found) return found.error;
 
-  // Naming a task does not license a second running one: M10 keeps the
-  // single-in-progress invariant. Lifting this belongs with the concurrency
-  // limit that replaces it — see M11 in PLAN.md and ADR-004.
-  const active = activeTask(state);
-  if (active) return conflict(active);
+  // M10 refused outright here to hold the single-in-progress invariant. The
+  // limit replaces that refusal rather than lifting it: sending work back for
+  // another pass starts a task, and it counts against the same budget.
+  const running = atCapacity(state, e.concurrency, found.task.id);
+  if (running) return conflict(running);
 
   const revised = transition(found.task, "in-progress", e.at);
   return ok(commit(state, replace(state.tasks, revised), e.at), [
@@ -298,6 +298,21 @@ function oldestAwaitingReview(state: ProjectState): Task | undefined {
   return [...state.tasks]
     .filter((t) => t.status === "awaiting-review")
     .sort((a, b) => (a.finishedAt ?? 0) - (b.finishedAt ?? 0))[0];
+}
+
+/**
+ * The running tasks, when there is no room for another — otherwise undefined.
+ *
+ * Returning the tasks rather than a boolean is what lets the refusal name them:
+ * at a limit of one there is exactly one task to point at, which is the message
+ * every caller before M11 already produced.
+ *
+ * `excludeId` is for a task that is already running and merely moving: it is
+ * counted in the total, so without this it would be its own reason for refusal.
+ */
+function atCapacity(state: ProjectState, concurrency: number, excludeId?: string): Task[] | undefined {
+  const running = activeTasks(state).filter((t) => t.id !== excludeId);
+  return running.length >= concurrency ? running : undefined;
 }
 
 /** Status wording for conflict messages, written for a confused human. */
@@ -391,11 +406,42 @@ function locked(task: Task): Result {
   );
 }
 
-function conflict(active: Task): Result {
+/**
+ * No room to start another task.
+ *
+ * The one-task wording is preserved exactly, because at the default limit it is
+ * the only wording anyone has ever seen, and a message is a user interface. The
+ * plural form appears only on a board whose owner raised the limit deliberately,
+ * and names no single task because no single task is to blame.
+ */
+function conflict(running: Task[]): Result {
+  const only = running.length === 1 ? running[0] : undefined;
+  if (only) {
+    return reject(
+      "E_CONFLICT",
+      `"${only.title}" is already in progress. Move or finish it first — only one task runs at a time.`,
+      only.id,
+    );
+  }
   return reject(
     "E_CONFLICT",
-    `"${active.title}" is already in progress. Move or finish it first — only one task runs at a time.`,
-    active.id,
+    `${running.length} tasks are already in progress, which is the limit. Finish one first.`,
+  );
+}
+
+/** The same refusal, for `advance`, which has always had its own code. */
+function alreadyActive(running: Task[]): Result {
+  const only = running.length === 1 ? running[0] : undefined;
+  if (only) {
+    return reject(
+      "E_ALREADY_ACTIVE",
+      `"${only.title}" is already in progress. Finish it before starting another.`,
+      only.id,
+    );
+  }
+  return reject(
+    "E_ALREADY_ACTIVE",
+    `${running.length} tasks are already in progress, which is the limit. Finish one before starting another.`,
   );
 }
 

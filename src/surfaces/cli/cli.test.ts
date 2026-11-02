@@ -482,3 +482,106 @@ describe("lifecycle verbs with a task reference", () => {
     expect(r.stderr).toContain("queued, not in progress");
   });
 });
+
+describe("the concurrency preference", () => {
+  test("a fresh project reports one task at a time", async () => {
+    const r = await run("concurrency");
+
+    expect(r.code).toBe(0);
+    expect(r.stdout).toContain("1 task at a time");
+  });
+
+  test("setting it reports the new limit, and it sticks", async () => {
+    expect((await run("concurrency", "3")).stdout).toContain("up to 3 tasks at a time");
+    expect((await run("concurrency")).stdout).toContain("3 tasks at a time");
+  });
+
+  test("a limit that is not a whole number is refused", async () => {
+    const r = await run("concurrency", "two");
+
+    expect(r.code).toBe(2);
+    expect(r.stderr).toContain("not a whole number");
+    expect((await run("concurrency")).stdout).toContain("1 task at a time");
+  });
+
+  test("zero is refused", async () => {
+    expect((await run("concurrency", "0")).code).toBe(2);
+  });
+
+  /**
+   * The default has to be invisible. A user who never runs this command must
+   * see the same refusal, word for word, that the board gave before M11.
+   */
+  test("at the default, a second advance is refused exactly as before", async () => {
+    await run("add", "first", "--queued");
+    await run("add", "second", "--queued");
+    await run("advance");
+
+    const r = await run("advance");
+
+    expect(r.code).toBe(1);
+    expect(r.stderr).toContain('"first" is already in progress. Finish it before starting another.');
+  });
+
+  test("raising it lets two tasks run at once", async () => {
+    await run("add", "first", "--queued");
+    await run("add", "second", "--queued");
+    await run("concurrency", "2");
+
+    await run("advance");
+    const r = await run("advance");
+
+    expect(r.code).toBe(0);
+    const running = (await board()).tasks.filter((t) => t.status === "in-progress");
+    expect(running.map((t) => t.title)).toEqual(["first", "second"]);
+  });
+
+  test("the limit still bites at the raised value", async () => {
+    for (const title of ["first", "second", "third"]) await run("add", title, "--queued");
+    await run("concurrency", "2");
+    await run("advance");
+    await run("advance");
+
+    const r = await run("advance");
+
+    expect(r.code).toBe(1);
+    expect(r.stderr).toContain("2 tasks are already in progress");
+  });
+
+  /**
+   * The whole point of M10 plus M11 together: two tasks in flight, each
+   * finished and approved by name rather than by whichever the board guesses.
+   */
+  test("two tasks run, finish, and are approved by id", async () => {
+    await run("add", "first", "--queued");
+    await run("add", "second", "--queued");
+    await run("concurrency", "2");
+    await run("advance", "--agent", "worker-1");
+    await run("advance", "--agent", "worker-2");
+
+    const ids = Object.fromEntries((await board()).tasks.map((t) => [t.title, t.id]));
+    expect((await run("finish", ids.second!)).code).toBe(0);
+    expect((await run("finish", ids.first!)).code).toBe(0);
+    expect((await run("approve", ids.first!)).code).toBe(0);
+
+    const after = Object.fromEntries((await board()).tasks.map((t) => [t.title, t.status]));
+    expect(after.first).toBe("done");
+    expect(after.second).toBe("awaiting-review");
+  });
+
+  test("the agent label is stored on the task", async () => {
+    await run("add", "only", "--queued");
+    await run("advance", "--agent", "worker-7");
+
+    const { stdout } = await run("list", "--json");
+    const tasks = JSON.parse(stdout).tasks as Array<{ agent: string | null }>;
+    expect(tasks[0]!.agent).toBe("worker-7");
+  });
+
+  test("enabling a project does not reset its limit", async () => {
+    await run("concurrency", "2");
+    await run("enable");
+
+    expect((await run("concurrency")).stdout).toContain("2 tasks at a time");
+  });
+});

@@ -1,10 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import { apply } from "./apply.ts";
 import {
+  DEFAULT_CONCURRENCY,
   EDITABLE_STATUSES,
   TERMINAL_STATUSES,
   TaskStatusSchema,
   activeTask,
+  activeTasks,
   emptyState,
   type ProjectState,
   type Task,
@@ -33,6 +35,7 @@ function task(id: string, over: Partial<Task> = {}): Task {
     attempts: 0,
     planMode: false,
     sessionId: null,
+    agent: null,
     attachments: [],
     ...over,
   };
@@ -700,5 +703,186 @@ describe("invariants hold across a full lifecycle", () => {
         expect(t.finishedAt).toBeNull();
       }
     }
+  });
+});
+
+/**
+ * M11: several tasks in progress, gated by a limit the caller supplies.
+ *
+ * The contract that matters most here is the one about *not* changing: a board
+ * whose owner never raised the limit must behave exactly as it did before this
+ * milestone, down to the wording of the refusals.
+ */
+describe("the concurrency limit", () => {
+  test("defaults to one", () => {
+    expect(DEFAULT_CONCURRENCY).toBe(1);
+  });
+
+  test("an omitted limit means one, so advance still refuses a second task", () => {
+    const before = stateOf([taskIn("a", "in-progress"), taskIn("b", "queued")]);
+
+    const e = err(apply(before, { type: "advance", at: LATER }));
+
+    expect(e.code).toBe("E_ALREADY_ACTIVE");
+    expect(e.message).toBe('"task a" is already in progress. Finish it before starting another.');
+    expect(e.taskId).toBe("a");
+  });
+
+  test("an explicit limit of one is indistinguishable from none", () => {
+    const before = stateOf([taskIn("a", "in-progress"), taskIn("b", "queued")]);
+
+    const implicit = err(apply(before, { type: "advance", at: LATER }));
+    const explicit = err(apply(before, { type: "advance", at: LATER, concurrency: 1 }));
+
+    expect(explicit).toEqual(implicit);
+  });
+
+  test("a raised limit lets a second task start", () => {
+    const before = stateOf([taskIn("a", "in-progress"), taskIn("b", "queued")]);
+
+    const r = ok(apply(before, { type: "advance", at: LATER, concurrency: 2 }));
+
+    expect(activeTasks(r.state).map((t) => t.id)).toEqual(["a", "b"]);
+  });
+
+  test("the limit still bites once it is reached", () => {
+    const before = stateOf([
+      taskIn("a", "in-progress"),
+      taskIn("b", "in-progress"),
+      taskIn("c", "queued"),
+    ]);
+
+    const e = err(apply(before, { type: "advance", at: LATER, concurrency: 2 }));
+
+    expect(e.code).toBe("E_ALREADY_ACTIVE");
+    expect(e.message).toBe(
+      "2 tasks are already in progress, which is the limit. Finish one before starting another.",
+    );
+  });
+
+  /**
+   * No single task is to blame when several are running, so the rejection
+   * names none — a taskId here would point the user at an arbitrary one.
+   */
+  test("a plural refusal blames no particular task", () => {
+    const before = stateOf([
+      taskIn("a", "in-progress"),
+      taskIn("b", "in-progress"),
+      taskIn("c", "queued"),
+    ]);
+
+    expect(err(apply(before, { type: "advance", at: LATER, concurrency: 2 })).taskId).toBeUndefined();
+  });
+
+  test("a lowered limit refuses rather than stopping anything already running", () => {
+    const before = stateOf([
+      taskIn("a", "in-progress"),
+      taskIn("b", "in-progress"),
+      taskIn("c", "queued"),
+    ]);
+
+    const e = err(apply(before, { type: "advance", at: LATER, concurrency: 1 }));
+
+    expect(e.code).toBe("E_ALREADY_ACTIVE");
+    expect(activeTasks(before)).toHaveLength(2);
+  });
+
+  test("revise counts against the same limit", () => {
+    const before = stateOf([taskIn("a", "in-progress"), taskIn("b", "awaiting-review")]);
+
+    const e = err(apply(before, { type: "revise", at: LATER, id: "b" }));
+
+    expect(e.code).toBe("E_CONFLICT");
+    expect(e.message).toBe(
+      '"task a" is already in progress. Move or finish it first — only one task runs at a time.',
+    );
+  });
+
+  test("revise succeeds under a raised limit", () => {
+    const before = stateOf([taskIn("a", "in-progress"), taskIn("b", "awaiting-review")]);
+
+    const r = ok(apply(before, { type: "revise", at: LATER, id: "b", concurrency: 2 }));
+
+    expect(activeTasks(r.state).map((t) => t.id)).toEqual(["a", "b"]);
+  });
+
+  test("move into progress counts against the limit", () => {
+    const before = stateOf([taskIn("a", "in-progress"), taskIn("b", "queued")]);
+
+    expect(err(apply(before, { type: "move", at: LATER, id: "b", to: "in-progress" })).code).toBe(
+      "E_CONFLICT",
+    );
+    expect(
+      ok(apply(before, { type: "move", at: LATER, id: "b", to: "in-progress", concurrency: 2 })),
+    ).toBeTruthy();
+  });
+
+  /**
+   * A running task is already counted, so it must not be its own reason for
+   * refusal when it merely changes position.
+   */
+  test("a running task can be repositioned at any limit", () => {
+    const before = stateOf([taskIn("a", "in-progress")]);
+
+    expect(ok(apply(before, { type: "move", at: LATER, id: "a", to: "in-progress", order: 5 }))).toBeTruthy();
+  });
+
+  test("a limit below one is not a limit", () => {
+    const before = stateOf([taskIn("b", "queued")]);
+
+    expect(err(apply(before, { type: "advance", at: LATER, concurrency: 0 })).code).toBe(
+      "E_INVALID_INPUT",
+    );
+  });
+});
+
+describe("activeTasks", () => {
+  test("returns every running task, leaving the singular accessor alone", () => {
+    const state = stateOf([
+      taskIn("a", "in-progress"),
+      taskIn("b", "in-progress"),
+      taskIn("c", "queued"),
+    ]);
+
+    expect(activeTasks(state).map((t) => t.id)).toEqual(["a", "b"]);
+    expect(activeTask(state)?.id).toBe("a");
+  });
+
+  test("is empty, not undefined, when nothing runs", () => {
+    expect(activeTasks(stateOf([taskIn("a", "queued")]))).toEqual([]);
+  });
+});
+
+describe("the agent label", () => {
+  test("is null when advance does not name one", () => {
+    const r = ok(apply(stateOf([taskIn("t1", "queued")]), { type: "advance", at: LATER }));
+
+    expect(find(r.state, "t1").agent).toBeNull();
+  });
+
+  /**
+   * A label, not an identity: a sub-agent shares the orchestrator's session id,
+   * so this is whatever the dispatcher chose to call it (ADR-004).
+   */
+  test("records the label the caller chose", () => {
+    const r = ok(
+      apply(stateOf([taskIn("t1", "queued")]), { type: "advance", at: LATER, agent: "worker-2" }),
+    );
+
+    expect(find(r.state, "t1").agent).toBe("worker-2");
+  });
+
+  test("is independent of the session id", () => {
+    const r = ok(
+      apply(stateOf([taskIn("t1", "queued")]), {
+        type: "advance",
+        at: LATER,
+        sessionId: "sess-1",
+        agent: "worker-2",
+      }),
+    );
+
+    expect(find(r.state, "t1").sessionId).toBe("sess-1");
+    expect(find(r.state, "t1").agent).toBe("worker-2");
   });
 });

@@ -2,7 +2,7 @@
 import { spawn } from "node:child_process";
 import { mutate } from "../../adapters/mutate.ts";
 import { attachSession, clearRuntime, readRuntime } from "../../adapters/runtime.ts";
-import { setEnabled } from "../../adapters/prefs.ts";
+import { readPrefs, setConcurrency, setEnabled } from "../../adapters/prefs.ts";
 import { readState } from "../../adapters/store.ts";
 import { startServer } from "../server/index.ts";
 import { TaskStatusSchema, type Event, type ProjectState, type Task } from "../../core/types.ts";
@@ -35,7 +35,7 @@ Tasks
   move <task> <status> Move a task to backlog|queued|in-progress|awaiting-review|done|skipped
 
 Working the queue
-  advance              Start the next queued task and print it
+  advance              Start the next queued task and print it [--agent <label>]
   finish [task]        Send a task to review     (default: the running one)
   approve [task]       Accept a task under review (default: the oldest)
   revise [task]        Send a task under review back for more work
@@ -43,6 +43,7 @@ Working the queue
 This project
   enable               Use command-center here, and start the board
   skip                 Leave this project alone
+  concurrency [n]      Show or set how many tasks may run at once (default 1)
 
 Serving
   server               Run the board server for this project (blocks)
@@ -80,18 +81,24 @@ async function main(argv: string[]): Promise<number> {
     case "move":
       return moveTask(cwd, args);
     case "advance":
-      return runEvent(cwd, { type: "advance", at: now(), sessionId: flagString(args, "session") ?? null });
+      return runEvent(cwd, {
+        type: "advance",
+        at: now(),
+        sessionId: flagString(args, "session") ?? null,
+        agent: flagString(args, "agent") ?? null,
+        concurrency: await limitFor(cwd),
+      });
     case "finish":
     case "approve":
-    case "revise": {
-      const picked = await lifecycleId(cwd, args);
-      if ("usage" in picked) return EXIT_USAGE;
-      return runEvent(cwd, { type: args.command, at: now(), ...picked });
-    }
+      return lifecycle(cwd, args, args.command);
+    case "revise":
+      return lifecycle(cwd, args, "revise", await limitFor(cwd));
     case "enable":
       return enableProject(cwd);
     case "skip":
       return skipProject(cwd);
+    case "concurrency":
+      return concurrencyCmd(cwd, args);
     case "server":
       return serve(cwd);
     case "doctor":
@@ -220,7 +227,13 @@ async function moveTask(cwd: string, args: Args): Promise<number> {
     return EXIT_FAILED;
   }
 
-  return runEvent(cwd, { type: "move", at: now(), id: resolved.task.id, to: status.data });
+  return runEvent(cwd, {
+    type: "move",
+    at: now(),
+    id: resolved.task.id,
+    to: status.data,
+    concurrency: await limitFor(cwd),
+  });
 }
 
 async function doctor(cwd: string, args: Args): Promise<number> {
@@ -416,6 +429,59 @@ async function runEvent(cwd: string, event: Event): Promise<number> {
 
   if (result.effects.length === 0) process.stdout.write("Done.\n");
   return EXIT_OK;
+}
+
+/** The project's concurrency limit, which core cannot read for itself. */
+async function limitFor(cwd: string): Promise<number> {
+  return (await readPrefs(cwd)).concurrency;
+}
+
+/**
+ * Show or change how many tasks may run at once.
+ *
+ * Deliberately a command rather than a flag on `advance`: the limit is a
+ * property of the project, not of one dispatch, and a flag would let two
+ * callers disagree about it within the same board.
+ */
+async function concurrencyCmd(cwd: string, args: Args): Promise<number> {
+  const given = args.positional[0];
+  if (given === undefined) {
+    const limit = await limitFor(cwd);
+    const plural = limit === 1 ? "task" : "tasks";
+    process.stdout.write(`${limit} ${plural} at a time.\n`);
+    return EXIT_OK;
+  }
+
+  const limit = Number(given);
+  if (!Number.isInteger(limit) || limit < 1) {
+    fail(`"${given}" is not a whole number of tasks.`, "Try: cmc concurrency 2");
+    return EXIT_USAGE;
+  }
+
+  await setConcurrency(cwd, limit);
+  const plural = limit === 1 ? "task" : "tasks";
+  process.stdout.write(`Now running up to ${limit} ${plural} at a time.\n`);
+  return EXIT_OK;
+}
+
+/**
+ * Run a lifecycle verb, resolving an optional positional task reference.
+ *
+ * `concurrency` is passed only by `revise`, the one verb here that starts a
+ * task; `finish` and `approve` only ever take one out of progress.
+ */
+async function lifecycle(
+  cwd: string,
+  args: Args,
+  command: "finish" | "approve" | "revise",
+  concurrency?: number,
+): Promise<number> {
+  const picked = await lifecycleId(cwd, args);
+  if ("usage" in picked) return EXIT_USAGE;
+
+  return command === "revise"
+    ? runEvent(cwd, { type: "revise", at: now(), ...picked, concurrency })
+    : runEvent(cwd, { type: command, at: now(), ...picked });
 }
 
 /**

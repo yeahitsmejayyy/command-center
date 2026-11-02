@@ -5,6 +5,7 @@ import { logFor } from "../../adapters/log.ts";
 import { readPrefs } from "../../adapters/prefs.ts";
 import { attachSession, clearRuntime, detachSession, readRuntime } from "../../adapters/runtime.ts";
 import { readState } from "../../adapters/store.ts";
+import type { Task } from "../../core/types.ts";
 import { HOOK_CONTRACT_VERSION, contractMismatchMessage } from "./contract.ts";
 
 /**
@@ -71,7 +72,7 @@ async function sessionStart(cwd: string, input: HookInput): Promise<void> {
   // Register this session so SessionEnd knows whether anyone else is watching.
   if (input.session_id) await attachSession(cwd, input.session_id);
 
-  emit(await announcement(cwd, record.port, input.session_id));
+  emit(await announcement(cwd, record.port, prefs.concurrency, input.session_id));
 }
 
 async function sessionEnd(cwd: string, input: HookInput): Promise<void> {
@@ -141,7 +142,12 @@ function offerText(): string {
   ].join("\n");
 }
 
-async function announcement(cwd: string, port: number, sessionId?: string): Promise<string> {
+async function announcement(
+  cwd: string,
+  port: number,
+  concurrency: number,
+  sessionId?: string,
+): Promise<string> {
   const lines = [
     `command-center is running for this project at http://127.0.0.1:${port}`,
     "",
@@ -150,20 +156,39 @@ async function announcement(cwd: string, port: number, sessionId?: string): Prom
   try {
     const state = await readState(cwd);
     const queued = state.tasks.filter((t) => t.status === "queued").length;
-    const active = state.tasks.find((t) => t.status === "in-progress");
+    const running = state.tasks.filter((t) => t.status === "in-progress");
     const review = state.tasks.filter((t) => t.status === "awaiting-review").length;
+    const room = concurrency - running.length;
 
-    if (active) {
+    if (running.length === 1) {
+      const [only] = running as [Task];
       lines.push(
-        `"${active.title}" is currently in progress. Run \`cmc finish\` when the work is done,`,
+        `"${only.title}" is currently in progress. Run \`cmc finish ${only.id}\` when the work is done,`,
         "then `/command-center:start` to pick up the next task.",
       );
+    } else if (running.length > 1) {
+      // Naming each one is the whole point: with several in flight, a bare
+      // `cmc finish` would pick one of them and the agent could not say which.
+      lines.push(`${running.length} tasks are currently in progress:`);
+      for (const task of running) {
+        lines.push(`  ${task.id}  ${task.title}${task.agent ? ` (${task.agent})` : ""}`);
+      }
+      lines.push("Run `cmc finish <task id>` for each as it is done.");
     } else if (queued > 0) {
       lines.push(
         `${queued} task(s) are queued. Run \`/command-center:start\` when the user is ready to begin.`,
       );
     } else {
       lines.push("Nothing is queued. The user can add tasks on the board.");
+    }
+
+    // Something running does not mean the board is full. Without this, a raised
+    // limit would never be mentioned and the queue would look blocked.
+    if (running.length > 0 && queued > 0 && room > 0) {
+      lines.push(
+        `${queued} task(s) are still queued, and this project runs up to ${concurrency} at a time —`,
+        `there is room for ${room} more. Run \`/command-center:start\` to begin another.`,
+      );
     }
 
     if (review > 0) {

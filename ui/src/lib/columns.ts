@@ -72,7 +72,7 @@ export const COLUMNS: ColumnSpec[] = [
     soft: "var(--orange-wash-2)",
     empty: {
       title: "Nothing in progress",
-      text: "Claude works one task at a time. Starting a task moves it here.",
+      text: "Starting a task moves it here.",
     },
   },
   {

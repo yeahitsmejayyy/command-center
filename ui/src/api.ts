@@ -46,6 +46,8 @@ export interface Task {
   attempts: number;
   planMode: boolean;
   sessionId: string | null;
+  /** A label the dispatcher chose for whoever is working it, not an identity. */
+  agent: string | null;
   attachments: Attachment[];
 }
 

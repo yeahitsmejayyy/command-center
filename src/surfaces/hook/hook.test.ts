@@ -53,6 +53,13 @@ async function runHook(event: string, extra: string[] = [], stdin?: object) {
   return { stdout, stderr, code: await proc.exited };
 }
 
+/** Drive the real CLI against this test's project, the way a user would. */
+async function cli(...args: string[]) {
+  await Bun.spawn(["bun", "run", CLI, "--cwd", project, ...args], {
+    env: { ...process.env, COMMAND_CENTER_HOME: home },
+  }).exited;
+}
+
 function contextOf(stdout: string): string {
   if (!stdout.trim()) return "";
   const parsed = JSON.parse(stdout);
@@ -153,6 +160,68 @@ describe("session-start — enabled project", () => {
 
     expect(second!.pid).toBe(first!.pid);
     expect(second!.port).toBe(first!.port);
+  });
+
+  /**
+   * With several tasks running, a bare `cmc finish` would pick one of them and
+   * the agent could not say which. The announcement has to name each id.
+   */
+  test("names every running task when more than one is in progress", async () => {
+    await setEnabled(project, true);
+    await cli("concurrency", "2");
+    await cli("add", "First job", "--queued");
+    await cli("add", "Second job", "--queued");
+    await cli("advance", "--agent", "worker-1");
+    await cli("advance", "--agent", "worker-2");
+
+    const context = contextOf((await runHook("session-start", CONTRACT)).stdout);
+
+    expect(context).toContain("2 tasks are currently in progress");
+    expect(context).toContain("First job");
+    expect(context).toContain("Second job");
+    expect(context).toContain("worker-1");
+    expect(context).toContain("worker-2");
+    expect(context).toContain("cmc finish <task id>");
+  });
+
+  test("a single running task is named by id, not left to be guessed", async () => {
+    await setEnabled(project, true);
+    await cli("add", "Only job", "--queued");
+    await cli("advance");
+
+    const context = contextOf((await runHook("session-start", CONTRACT)).stdout);
+    const id = context.match(/cmc finish (t_\S+)/)?.[1];
+
+    expect(id).toBeTruthy();
+    expect(context).toContain('"Only job" is currently in progress');
+  });
+
+  /**
+   * Something running does not mean the board is full. Before the limit
+   * existed, any active task suppressed the queue entirely.
+   */
+  test("says there is room for more when the limit allows it", async () => {
+    await setEnabled(project, true);
+    await cli("concurrency", "3");
+    await cli("add", "First job", "--queued");
+    await cli("add", "Second job", "--queued");
+    await cli("advance");
+
+    const context = contextOf((await runHook("session-start", CONTRACT)).stdout);
+
+    expect(context).toContain("room for 2 more");
+    expect(context).toContain("/command-center:start");
+  });
+
+  test("at the default limit, a running task does not invite another", async () => {
+    await setEnabled(project, true);
+    await cli("add", "First job", "--queued");
+    await cli("add", "Second job", "--queued");
+    await cli("advance");
+
+    const context = contextOf((await runHook("session-start", CONTRACT)).stdout);
+
+    expect(context).not.toContain("room for");
   });
 
   test("mentions queued work so Claude knows there is something to do", async () => {

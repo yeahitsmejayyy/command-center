@@ -15,6 +15,7 @@ function task(over: Partial<Task> = {}): Task {
     attempts: 0,
     planMode: false,
     sessionId: null,
+    agent: null,
     attachments: [],
     ...over,
   };

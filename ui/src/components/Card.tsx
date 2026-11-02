@@ -85,6 +85,9 @@ interface CardBodyProps {
 function CardBody({ task, onOpen, onStop, onDelete, className, style, handleProps, nodeRef }: CardBodyProps) {
   const touchedAt = task.finishedAt ?? task.startedAt ?? task.createdAt;
   const worked = task.sessionId !== null || task.attempts > 0;
+  // Every worker is Claude; the label only says which one, so it replaces the
+  // name and leaves the avatar alone.
+  const who = task.agent ?? "Claude";
 
   return (
     <article
@@ -114,10 +117,10 @@ function CardBody({ task, onOpen, onStop, onDelete, className, style, handleProp
       <div className="cc-card__foot">
         {worked && (
           <>
-            <span className="cc-avatar cc-avatar--agent" title="Claude" aria-label="Claude">
+            <span className="cc-avatar cc-avatar--agent" title={who} aria-label={who}>
               CC
             </span>
-            <span className="cc-card__who">Claude</span>
+            <span className="cc-card__who">{who}</span>
           </>
         )}
         <div style={{ flex: "1 1 0%" }} />

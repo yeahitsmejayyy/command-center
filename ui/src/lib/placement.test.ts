@@ -29,7 +29,7 @@ function task(id: string, status: TaskStatus, order: number): Task {
   return {
     id, title: id, body: "", status, order,
     createdAt: 0, startedAt: null, finishedAt: null,
-    attempts: 0, planMode: false, sessionId: null, attachments: [],
+    attempts: 0, planMode: false, sessionId: null, agent: null, attachments: [],
   };
 }
 

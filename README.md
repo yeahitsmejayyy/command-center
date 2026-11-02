@@ -19,6 +19,12 @@
 
 ---
 
+> **New in 2.2.0 — more than one task at a time.**
+> `cmc concurrency 2` lets two tasks run at once, `cmc advance --agent <label>` records who is
+> working each one, and the board shows that label on the card. The default is still one task,
+> and at one nothing has changed. See [More than one task at a time](#more-than-one-task-at-a-time)
+> for when it is worth raising — and for the collision protection the board does not have.
+
 ## Install
 
 Requires [Bun](https://bun.sh) 1.3 or newer (`curl -fsSL https://bun.sh/install | bash`).
@@ -93,6 +99,6 @@ No database — JSON files under a lock. No daemon — servers live and die with
 - [docs/architecture.md](docs/architecture.md) — the state machine, the layer boundaries, the on-disk layout
 - [docs/decisions/](docs/decisions/) — why the significant calls were made, and what was weighed against them
 - [docs/build-log/](docs/build-log/) — how it was built, in order, including what broke
-- [CHANGELOG.md](CHANGELOG.md) — what changed in 2.0.0, and how to migrate from v1
+- [CHANGELOG.md](CHANGELOG.md) — what changed in every release, including 2.2.0, and how to migrate from v1
 
 Licensed under [MIT](LICENSE).

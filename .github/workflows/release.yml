@@ -15,6 +15,12 @@ on:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    # The repository's default token is read-only, so the publish step gets a
+    # 403 without this -- which is the real reason v2.1.1 produced no release.
+    # Granted on the job rather than repository-wide: nothing here needs write
+    # access except the last step.
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 

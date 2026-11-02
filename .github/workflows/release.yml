@@ -21,11 +21,36 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      # `bun test` sweeps the whole repo and the board's tests import from
+      # ui/node_modules. Without this the suite fails on modules that are not
+      # missing so much as never installed — which is how v2.1.1 was tagged with
+      # a red release run while CI on main was green. This workflow's checks
+      # must stay a superset of ci.yml's, or the release gate is weaker than the
+      # gate every pull request already passes.
+      - name: Install UI build dependencies
+        run: bun install --frozen-lockfile --cwd ui
+
       - name: Typecheck
         run: bun run typecheck
 
+      - name: Typecheck the UI
+        run: bunx tsc --noEmit --project ui/tsconfig.json
+
       - name: Test
         run: bun test
+
+      # The board ships prebuilt: Claude Code installs plugins with
+      # --ignore-scripts, so Vite never runs on a user's machine. Tagging a
+      # stale bundle would publish a board that does not match its source, and
+      # a release is the last moment anyone could notice.
+      - name: Verify the committed UI bundle is current
+        run: |
+          bun run --cwd ui build
+          if ! git diff --quiet -- ui/dist; then
+            echo "::error::ui/dist is stale. Run 'bun run --cwd ui build' and commit the result."
+            git diff --stat -- ui/dist
+            exit 1
+          fi
 
       # Both manifests and the git tag must name the same version.
       - name: Check manifests against the tag

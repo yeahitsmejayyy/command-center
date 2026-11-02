@@ -126,9 +126,12 @@ export const EventSchema = z.discriminatedUnion("type", [
   }),
   z.object({ ...base, type: z.literal("reorder"), id: z.string().min(1), order: z.number() }),
   z.object({ ...base, type: z.literal("advance"), sessionId: z.string().nullable().default(null) }),
-  z.object({ ...base, type: z.literal("finish") }),
-  z.object({ ...base, type: z.literal("approve") }),
-  z.object({ ...base, type: z.literal("revise") }),
+  // `id` omitted keeps the historical behaviour — the verb picks its own
+  // subject off the board. Supplied, it names one. Optional rather than
+  // required so every caller written before this still means what it meant.
+  z.object({ ...base, type: z.literal("finish"), id: z.string().min(1).optional() }),
+  z.object({ ...base, type: z.literal("approve"), id: z.string().min(1).optional() }),
+  z.object({ ...base, type: z.literal("revise"), id: z.string().min(1).optional() }),
 ]);
 export type Event = z.input<typeof EventSchema>;
 type ParsedEvent = z.infer<typeof EventSchema>;

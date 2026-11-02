@@ -383,11 +383,102 @@ describe("advance tells the agent how to hand the task back", () => {
     expect(stdout).toContain("cmc finish");
   });
 
+  test("the instruction names the task, so it stays correct on a busy board", async () => {
+    await run("add", "Add a health check", "--queued");
+    const { stdout } = await run("advance");
+
+    const started = (await board()).tasks.find((t) => t.status === "in-progress")!;
+    expect(stdout).toContain(`cmc finish ${started.id}`);
+  });
+
   test("the instruction does not appear when nothing started", async () => {
     await run("add", "Parked", "--queued");
     await run("advance");
     const { stdout } = await run("list");
 
     expect(stdout).not.toContain("cmc finish");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Naming the task a lifecycle verb acts on (M10). The defect this fixes shows
+// up at concurrency 1: with two tasks in review, a bare `approve` silently
+// takes the oldest and the user cannot tell which one they just accepted.
+// ---------------------------------------------------------------------------
+
+describe("lifecycle verbs with a task reference", () => {
+  test("finish accepts an id prefix", async () => {
+    await run("add", "only", "--queued");
+    await run("advance");
+    const running = (await board()).tasks.find((t) => t.status === "in-progress")!;
+
+    const r = await run("finish", running.id.slice(0, 8));
+
+    expect(r.code).toBe(0);
+    expect((await board()).tasks.find((t) => t.id === running.id)!.status).toBe("awaiting-review");
+  });
+
+  test("finish with no reference still takes the running task", async () => {
+    await run("add", "only", "--queued");
+    await run("advance");
+
+    const r = await run("finish");
+
+    expect(r.code).toBe(0);
+    expect((await board()).tasks[0]!.status).toBe("awaiting-review");
+  });
+
+  test("an unknown reference fails without touching the board", async () => {
+    await run("add", "only", "--queued");
+    await run("advance");
+
+    const r = await run("finish", "zzzz");
+
+    expect(r.code).not.toBe(0);
+    expect(r.stderr).toContain('No task matches "zzzz"');
+    expect((await board()).tasks[0]!.status).toBe("in-progress");
+  });
+
+  test("approve takes the named task, not the oldest", async () => {
+    await run("add", "first", "--queued");
+    await run("advance");
+    await run("finish");
+    await run("add", "second", "--queued");
+    await run("advance");
+    await run("finish");
+
+    const second = (await board()).tasks.find((t) => t.title === "second")!;
+    const r = await run("approve", second.id);
+
+    expect(r.code).toBe(0);
+    const after = await board();
+    expect(after.tasks.find((t) => t.title === "second")!.status).toBe("done");
+    expect(after.tasks.find((t) => t.title === "first")!.status).toBe("awaiting-review");
+  });
+
+  test("approve with no reference still takes the oldest", async () => {
+    await run("add", "first", "--queued");
+    await run("advance");
+    await run("finish");
+    await run("add", "second", "--queued");
+    await run("advance");
+    await run("finish");
+
+    const r = await run("approve");
+
+    expect(r.code).toBe(0);
+    const after = await board();
+    expect(after.tasks.find((t) => t.title === "first")!.status).toBe("done");
+    expect(after.tasks.find((t) => t.title === "second")!.status).toBe("awaiting-review");
+  });
+
+  test("a named task in the wrong state explains itself", async () => {
+    await run("add", "waiting", "--queued");
+    const queued = (await board()).tasks[0]!;
+
+    const r = await run("finish", queued.id);
+
+    expect(r.code).not.toBe(0);
+    expect(r.stderr).toContain("queued, not in progress");
   });
 });

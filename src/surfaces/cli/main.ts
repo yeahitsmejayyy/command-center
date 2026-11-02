@@ -36,9 +36,9 @@ Tasks
 
 Working the queue
   advance              Start the next queued task and print it
-  finish               Send the running task to review
-  approve              Accept the task under review
-  revise               Send the task under review back for more work
+  finish [task]        Send a task to review     (default: the running one)
+  approve [task]       Accept a task under review (default: the oldest)
+  revise [task]        Send a task under review back for more work
 
 This project
   enable               Use command-center here, and start the board
@@ -82,11 +82,12 @@ async function main(argv: string[]): Promise<number> {
     case "advance":
       return runEvent(cwd, { type: "advance", at: now(), sessionId: flagString(args, "session") ?? null });
     case "finish":
-      return runEvent(cwd, { type: "finish", at: now() });
     case "approve":
-      return runEvent(cwd, { type: "approve", at: now() });
-    case "revise":
-      return runEvent(cwd, { type: "revise", at: now() });
+    case "revise": {
+      const picked = await lifecycleId(cwd, args);
+      if ("usage" in picked) return EXIT_USAGE;
+      return runEvent(cwd, { type: args.command, at: now(), ...picked });
+    }
     case "enable":
       return enableProject(cwd);
     case "skip":
@@ -415,6 +416,27 @@ async function runEvent(cwd: string, event: Event): Promise<number> {
 
   if (result.effects.length === 0) process.stdout.write("Done.\n");
   return EXIT_OK;
+}
+
+/**
+ * Turn an optional positional task reference into an id for a lifecycle event.
+ *
+ * Resolution lives here rather than in core: prefix matching is a terminal
+ * affordance for humans, and core only ever sees a full id. Reading state
+ * outside the lock to resolve it is what `edit` and `move` already do — the
+ * worst case is a reference that was valid a moment ago and is now rejected by
+ * the domain, which is a correct answer either way.
+ */
+async function lifecycleId(cwd: string, args: Args): Promise<{ id?: string } | { usage: true }> {
+  const ref = args.positional[0];
+  if (!ref) return {};
+
+  const resolved = resolveTask(await readState(cwd), ref);
+  if ("error" in resolved) {
+    fail(resolved.error, resolved.hint);
+    return { usage: true };
+  }
+  return { id: resolved.task.id };
 }
 
 type Resolved = { task: Task } | { error: string; hint?: string };

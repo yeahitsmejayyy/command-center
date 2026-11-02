@@ -7,6 +7,10 @@ name: Release
 on:
   push:
     tags: ["v*"]
+  # A gate nobody can run is a gate you discover mid-release -- which is how
+  # v2.1.1 came to be tagged against a red run. Dispatch runs the same checks
+  # on demand, so verifying the gate no longer costs a version number.
+  workflow_dispatch:
 
 jobs:
   verify:
@@ -53,13 +57,23 @@ jobs:
           fi
 
       # Both manifests and the git tag must name the same version.
+      # The tag is a source of truth only when there is one. On a manual run
+      # the script still checks that the manifests agree with each other.
       - name: Check manifests against the tag
-        run: bun run scripts/check-manifests.ts "${GITHUB_REF_NAME}"
+        run: |
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            bun run scripts/check-manifests.ts "${GITHUB_REF_NAME}"
+          else
+            bun run scripts/check-manifests.ts
+          fi
 
       - name: Verify the entry point is executable
         run: test -x bin/cmc || (echo "bin/cmc is not executable" && exit 1)
 
+      # Only a tag names a release. A manual run is a dry run of the gate and
+      # must not publish anything.
       - name: Publish release
+        if: github.ref_type == 'tag'
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true

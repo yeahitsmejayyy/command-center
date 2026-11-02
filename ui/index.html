@@ -9,7 +9,10 @@
       does not use SVG favicons) is the orange tile rather than the transparent
       ink mark, which would vanish against a dark tab strip.
     -->
-    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <!-- Identified by id, not by type: the board rewrites both href and type
+         when a project picks its own icon, so any selector naming the type
+         stops matching the moment it is used once. -->
+    <link id="cc-favicon" rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="icon" href="/icon-192.png" sizes="192x192" type="image/png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon-180.png" />
     <meta name="theme-color" content="#FF6100" />

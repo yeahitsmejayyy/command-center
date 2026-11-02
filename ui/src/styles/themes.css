@@ -1,0 +1,273 @@
+/*
+ * Cyberpunk and Neo — the two board-local themes.
+ *
+ * Deliberately not in tokens.css. That file is a verbatim transcription of the
+ * Claude design export and says so at the top; these two themes are not in the
+ * export, so putting them there would make the transcription a lie. Day and
+ * Night stay where they are.
+ *
+ * Each theme is nothing but a block of alias overrides. Every component reads
+ * through the aliases, so none of them knows a theme exists — which is the
+ * whole reason four modes cost this little.
+ *
+ * One wart worth naming: --orange-wash, --orange-wash-2, --orange-edge and
+ * --orange-ring are read directly by components (the live card border, the
+ * drop target, a selected chip). They are accent tints that happen to carry
+ * the brand colour's name. Renaming them to --accent-* would be the honest
+ * fix, but it means editing the export and every call site; overriding them
+ * per theme costs four lines and no risk. If the export is ever regenerated
+ * with better names, delete these four and the themes keep working.
+ */
+
+/* ---------- Cyberpunk: neon blue on deep navy ----------
+   One hue family, top to bottom: the backgrounds are blue-black, the borders
+   and muted text are blue, and the accent is the electric cyan everything else
+   is a darker step toward. Nothing here is violet or magenta.
+
+   In Progress is the accent itself, which the other themes deliberately avoid
+   — Day and Night keep the live column off the brand orange so that every
+   button does not compete with the one column that matters. That reasoning
+   does not survive a theme whose whole identity is a single neon: the second
+   colour it would need is a colour this theme does not have. Neo resolves it
+   the same way, by giving the live column the brightest value in the family. */
+[data-theme="cyberpunk"] {
+  --bg:          #050B16;
+  --surface-col: #0A1426;
+  --surface:     #0E1B33;
+  --surface-bar: #070F1E;
+  --field:       #060D1A;
+  --hover:       #16263F;
+
+  --border:      #1C3152;
+  --border-2:    #2B4A7A;
+
+  --ink:         #E6F6FF;
+  --ink-2:       #8FB5D0;
+  --ink-3:       #5C7E9C;
+
+  --overlay:     rgba(2, 8, 20, 0.72);
+
+  --primary:            #00E5FF;
+  --primary-hover:      #5BEFFF;
+  /* Dark ink on a bright accent: cyan at full chroma will not carry white. */
+  --primary-foreground: #06121A;
+  --focus-ring:         0 0 0 3px rgba(0, 229, 255, 0.34);
+
+  --orange-wash:   rgba(0, 229, 255, 0.09);
+  --orange-wash-2: rgba(0, 229, 255, 0.14);
+  --orange-edge:   rgba(0, 229, 255, 0.55);
+  --orange-ring:   rgba(0, 229, 255, 0.34);
+
+  /* Five columns that have to stay apart in one hue family, so they are pulled
+     apart by lightness, with amber and green at the two ends where the meaning
+     is a status rather than a stage. */
+  --col-backlog:  #5C7E9C;
+  --col-queue:    #4D7CFF;
+  --col-progress: #00E5FF;
+  --col-review:   #FFC400;
+  --col-done:     #39FF88;
+  --col-skipped:  #33485F;
+
+  --success: #39FF88;
+  --info:    #4D7CFF;
+  --warning: #FFC400;
+  --danger:  #FF4D6D;
+  --success-soft: rgba(57, 255, 136, 0.14);
+  --info-soft:    rgba(77, 124, 255, 0.16);
+  --warning-soft: rgba(255, 196, 0, 0.16);
+  --danger-soft:  rgba(255, 77, 109, 0.16);
+
+  --session-attached: #39FF88;
+  --session-idle:     #5C7E9C;
+  --session-lost:     #FF4D6D;
+}
+
+/* ---------- Neo: black and grey, with rain ----------
+   The column wells are translucent here and nowhere else — the rain has to be
+   visible behind the board, and the wells are most of the board. Cards stay
+   fully opaque: a card is text someone has to read, and reading it through
+   falling glyphs is not a feature. */
+[data-theme="neo"] {
+  --bg:          #000000;
+  --surface-col: rgba(10, 14, 10, 0.52);
+  --surface:     #0B0F0B;
+  --surface-bar: #050705;
+  --field:       #060A06;
+  --hover:       #162016;
+
+  --border:      #1C2A1C;
+  --border-2:    #2F4A2F;
+
+  --ink:         #D6FFD9;
+  --ink-2:       #6FBF7A;
+  --ink-3:       #4A8552;
+
+  --overlay:     rgba(0, 0, 0, 0.80);
+
+  --primary:            #00FF41;
+  --primary-hover:      #6BFF8E;
+  --primary-foreground: #00140A;
+  --focus-ring:         0 0 0 3px rgba(0, 255, 65, 0.32);
+
+  --orange-wash:   rgba(0, 255, 65, 0.08);
+  --orange-wash-2: rgba(0, 255, 65, 0.14);
+  --orange-edge:   rgba(0, 255, 65, 0.55);
+  --orange-ring:   rgba(0, 255, 65, 0.32);
+
+  /* Five columns in one hue family would lose the left-to-right read, so the
+     greens are pulled apart by lightness and the two ends borrow a little
+     teal and acid. In Progress keeps the brightest value. */
+  --col-backlog:  #4A8552;
+  --col-queue:    #35C9B0;
+  --col-progress: #00FF41;
+  --col-review:   #E5FF00;
+  --col-done:     #0E9F43;
+  --col-skipped:  #39503C;
+
+  --success: #00FF41;
+  --info:    #35C9B0;
+  --warning: #E5FF00;
+  --danger:  #FF3860;
+  --success-soft: rgba(0, 255, 65, 0.12);
+  --info-soft:    rgba(53, 201, 176, 0.14);
+  --warning-soft: rgba(229, 255, 0, 0.14);
+  --danger-soft:  rgba(255, 56, 96, 0.14);
+
+  --session-attached: #00FF41;
+  --session-idle:     #4A8552;
+  --session-lost:     #FF3860;
+}
+
+/* ---------- Legibility on a bright accent ----------
+   Day and Night both carry white on their accent, because orange at full
+   chroma takes white. Cyan and acid green do not: white on either is the
+   washed-out pairing you see on cheap neon. Both themes already name the ink
+   their accent wants as --primary-foreground, so these two spots read it
+   instead of the white the export hardcodes.
+
+   Scoped to the two new themes on purpose — nothing about Day or Night
+   changes, which is the one promise this milestone has to keep. */
+[data-theme="cyberpunk"] .cc-avatar--agent,
+[data-theme="neo"] .cc-avatar--agent {
+  color: var(--primary-foreground);
+}
+
+[data-theme="cyberpunk"] .cc-btn--primary .cc-kbd,
+[data-theme="neo"] .cc-btn--primary .cc-kbd,
+[data-theme="cyberpunk"] .cc-btn--primary .cc-kbd--onprimary,
+[data-theme="neo"] .cc-btn--primary .cc-kbd--onprimary {
+  border-color: rgba(0, 0, 0, 0.30);
+  background: rgba(0, 0, 0, 0.18);
+  color: var(--primary-foreground);
+}
+
+/* ---------- The rain ----------
+   A fixed canvas under the whole shell. It paints on its own rAF loop and
+   never touches React, so a drag above it is unaffected; pointer-events are
+   off so it cannot take a click meant for a card.
+
+   The app shell is lifted above it rather than the canvas being pushed below
+   the body, because the body carries the page background and would hide it. */
+.cc-rain {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  display: block;
+  pointer-events: none;
+}
+
+[data-theme="neo"] .cc-app {
+  position: relative;
+  z-index: 1;
+}
+
+/* The component also declines to mount under reduced motion; this is the
+   second lock on the same door, for a preference that changes after mount. */
+@media (prefers-reduced-motion: reduce) {
+  .cc-rain {
+    display: none;
+  }
+}
+
+/* ---------- The picker ----------
+   Four options do not fit a toggle, so the header control opens a list. It
+   borrows .cc-popover for its shell; only the rows below are new. */
+.cc-themewrap {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+}
+
+/* The header control sits at the right edge, where a left-anchored popover
+   would hang off the window. */
+.cc-popover--right {
+  left: auto;
+  right: 0;
+}
+
+.cc-themelist {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cc-themeopt {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 7px 8px;
+  cursor: pointer;
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink);
+  font-family: var(--font-sans);
+  text-align: left;
+  transition:
+    background var(--dur-base) var(--ease-out),
+    border-color var(--dur-base) var(--ease-out);
+}
+
+.cc-themeopt:hover {
+  background: var(--hover);
+}
+
+.cc-themeopt--on {
+  border-color: var(--primary);
+  background: var(--orange-wash-2);
+}
+
+.cc-themeopt__text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.cc-themeopt__name {
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+}
+
+.cc-themeopt__hint {
+  font-size: var(--fs-sm);
+  color: var(--ink-2);
+}
+
+/* Two literal colours per theme, drawn while a different theme is active —
+   hence inline custom properties rather than tokens. */
+.cc-themeopt__swatch {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-pill);
+  border: var(--border-width) solid var(--border-2);
+  background: linear-gradient(135deg, var(--sw-bg) 0 52%, var(--sw-accent) 52% 100%);
+}
+
+.cc-themeopt__check {
+  flex: none;
+  margin-left: auto;
+  color: var(--primary);
+}

@@ -65,6 +65,7 @@ const dir = {
   logs: () => join(stateRoot(), "logs"),
   prefs: () => join(stateRoot(), "preferences"),
   attachments: () => join(stateRoot(), "attachments"),
+  icons: () => join(stateRoot(), "icons"),
 };
 
 export const paths = {
@@ -87,6 +88,15 @@ export const paths = {
     join(dir.attachments(), encodeCwd(cwd), safeSegment(taskId), safeSegment(attachmentId)),
   taskAttachments: (cwd: string, taskId: string) =>
     join(dir.attachments(), encodeCwd(cwd), safeSegment(taskId)),
+
+  /**
+   * The project's uploaded board icon.
+   *
+   * One file per project, overwritten on each upload, with no extension: the
+   * media type is recorded in preferences and the bytes are sniffed on the way
+   * in, so the name never has to be trusted to say what the file is.
+   */
+  icon: (cwd: string) => join(dir.icons(), encodeCwd(cwd)),
 };
 
 /** Anything that is not a plain id is not allowed to become a path segment. */

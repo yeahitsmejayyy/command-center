@@ -1,5 +1,7 @@
-import type { Connection } from "../api.ts";
-import { Logo } from "./Logo.tsx";
+import type { BoardIcon, Connection } from "../api.ts";
+import type { Theme } from "../lib/themes.ts";
+import { ProjectMark } from "./ProjectMark.tsx";
+import { ThemePicker } from "./ThemePicker.tsx";
 import { useTooltip } from "./Tooltip.tsx";
 import { projectName } from "../lib/format.ts";
 
@@ -14,24 +16,29 @@ import { projectName } from "../lib/format.ts";
 export function Header({
   cwd,
   connection,
+  icon,
   theme,
-  onToggleTheme,
+  onPickTheme,
   onNewTask,
   newTaskHint,
 }: {
   cwd: string;
   connection: Connection;
-  theme: "light" | "dark";
-  onToggleTheme: () => void;
+  icon: BoardIcon;
+  theme: Theme;
+  onPickTheme: (theme: Theme) => void;
   onNewTask: () => void;
   /** The key that also opens a new task, shown on the button. */
   newTaskHint?: string;
 }) {
   return (
     <header className="cc-header">
-      <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
-        <Logo />
-      </div>
+      {/* The mark is the project's, so it is also where the project's icon is
+          changed; the wordmark stays the product's and is not a control. */}
+      <span className="cc-logo">
+        <ProjectMark icon={icon} />
+        <span className="cc-logo__word">command center</span>
+      </span>
 
       <div className="cc-header__divider" />
 
@@ -41,15 +48,7 @@ export function Header({
 
       <div style={{ flex: "1 1 0%" }} />
 
-      <button
-        type="button"
-        className="cc-iconbtn"
-        aria-label="Toggle day / night"
-        title="Toggle day / night"
-        onClick={onToggleTheme}
-      >
-        {theme === "dark" ? <SunIcon /> : <MoonIcon />}
-      </button>
+      <ThemePicker theme={theme} onPick={onPickTheme} />
 
       {/* Hidden on phones — the floating button takes over there. */}
       <button type="button" className="cc-btn cc-btn--primary cc-hide-sm" onClick={onNewTask}>
@@ -111,47 +110,6 @@ function FolderIcon() {
       style={{ flex: "0 0 auto", display: "block", color: "var(--ink-2)" }}
     >
       <path d="M9 20H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H20a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9z" />
-    </svg>
-  );
-}
-
-function MoonIcon() {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      style={{ display: "block" }}
-    >
-      <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
-    </svg>
-  );
-}
-
-function SunIcon() {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      style={{ display: "block" }}
-    >
-      <circle cx="12" cy="12" r="4" />
-      <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M6.3 17.7l-1.4 1.4M19.1 4.9l-1.4 1.4" />
     </svg>
   );
 }

@@ -267,3 +267,130 @@ describe("logging", () => {
     expect(body.logPath).toBe(paths.log(project));
   });
 });
+
+/**
+ * The board icon.
+ *
+ * The interesting cases are all refusals: an icon is the one uploaded file the
+ * board serves inline from its own origin, so what it declines to store matters
+ * more than what it stores.
+ */
+describe("board icon", () => {
+  /** A one-pixel PNG, as real bytes — sniffing is the thing under test. */
+  const PNG = new Uint8Array([
+    0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52,
+    0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x06, 0x00, 0x00, 0x00, 0x1f, 0x15, 0xc4,
+    0x89, 0x00, 0x00, 0x00, 0x0a, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9c, 0x63, 0x00, 0x01, 0x00, 0x00,
+    0x05, 0x00, 0x01, 0x0d, 0x0a, 0x2d, 0xb4, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4e, 0x44, 0xae,
+    0x42, 0x60, 0x82,
+  ]);
+
+  async function upload(s: RunningServer, bytes: Uint8Array, name: string, type: string) {
+    const form = new FormData();
+    form.set("file", new File([bytes], name, { type }));
+    return fetch(url(s, "/api/icon/image"), { method: "POST", body: form });
+  }
+
+  test("a project that never picked one is on the default", async () => {
+    const s = await start();
+    const body = (await (await fetch(url(s, "/api/icon"))).json()) as any;
+    expect(body.icon).toEqual({ kind: "default" });
+  });
+
+  test("an emoji survives a restart", async () => {
+    const first = await start();
+    const res = await fetch(url(first, "/api/icon"), {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ kind: "emoji", value: "🛰️" }),
+    });
+    expect(res.status).toBe(200);
+    await first.stop();
+
+    server = await startServer({ cwd: project });
+    const body = (await (await fetch(url(server, "/api/icon"))).json()) as any;
+    expect(body.icon).toEqual({ kind: "emoji", value: "🛰️" });
+  });
+
+  test("a string that is not an emoji is refused", async () => {
+    const s = await start();
+    const res = await fetch(url(s, "/api/icon"), {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ kind: "emoji", value: "hello" }),
+    });
+    expect(res.status).toBe(400);
+    expect(((await res.json()) as any).error.message).toMatch(/not an emoji/i);
+  });
+
+  test("an uploaded PNG is stored and served back inline", async () => {
+    const s = await start();
+    expect((await upload(s, PNG, "mark.png", "image/png")).status).toBe(200);
+
+    const img = await fetch(url(s, "/api/icon/image"));
+    expect(img.status).toBe(200);
+    expect(img.headers.get("content-type")).toBe("image/png");
+    expect(img.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(new Uint8Array(await img.arrayBuffer())).toEqual(PNG);
+  });
+
+  test("an SVG is refused however it labels itself", async () => {
+    const s = await start();
+    const svg = new TextEncoder().encode('<svg xmlns="http://www.w3.org/2000/svg"></svg>');
+    const res = await upload(s, svg, "mark.svg", "image/png");
+
+    expect(res.status).toBe(415);
+    expect(((await res.json()) as any).error.message).toMatch(/not a PNG/i);
+    // And nothing was written: a refused upload leaves the project on default.
+    expect(((await (await fetch(url(s, "/api/icon"))).json()) as any).icon).toEqual({ kind: "default" });
+  });
+
+  test("a file over the limit is refused with the size in the message", async () => {
+    const s = await start();
+    const big = new Uint8Array(2 * 1024 * 1024);
+    big.set(PNG);
+    const res = await upload(s, big, "huge.png", "image/png");
+
+    expect(res.status).toBe(413);
+    expect(((await res.json()) as any).error.message).toMatch(/2\.0 MB.*limit is 1 MB/i);
+  });
+
+  test("resetting clears both the choice and the bytes", async () => {
+    const s = await start();
+    await upload(s, PNG, "mark.png", "image/png");
+    expect(existsSync(paths.icon(project))).toBe(true);
+
+    const res = await fetch(url(s, "/api/icon"), { method: "DELETE" });
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as any).icon).toEqual({ kind: "default" });
+    expect(existsSync(paths.icon(project))).toBe(false);
+    expect((await fetch(url(s, "/api/icon/image"))).status).toBe(404);
+  });
+
+  test("picking an emoji drops the image that is no longer the icon", async () => {
+    const s = await start();
+    await upload(s, PNG, "mark.png", "image/png");
+
+    await fetch(url(s, "/api/icon"), {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ kind: "emoji", value: "🚀" }),
+    });
+
+    expect(existsSync(paths.icon(project))).toBe(false);
+  });
+
+  test("the choice does not disturb the other preferences", async () => {
+    const s = await start();
+    await cli("concurrency", "3");
+    await fetch(url(s, "/api/icon"), {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ kind: "emoji", value: "🚀" }),
+    });
+
+    const prefs = JSON.parse(readFileSync(paths.prefs(project), "utf8"));
+    expect(prefs.concurrency).toBe(3);
+    expect(prefs.icon).toEqual({ kind: "emoji", value: "🚀" });
+  });
+});

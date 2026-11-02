@@ -15,11 +15,14 @@ import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import { planDrop } from "./lib/placement.ts";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  fetchIcon,
   fetchState,
+  iconImageUrl,
   newTaskId,
   sendEvent,
   subscribe,
   uploadAttachment,
+  type BoardIcon,
   type Connection,
   type ProjectState,
   type Task,
@@ -34,8 +37,8 @@ import { ConfirmDialog } from "./components/ConfirmDialog.tsx";
 import { NewTaskButton } from "./components/NewTaskButton.tsx";
 import { COLUMNS, COLUMN_STATUSES, type ColumnSpec } from "./lib/columns.ts";
 import { useShortcuts, type Shortcut } from "./lib/shortcuts.ts";
-
-type Theme = "light" | "dark";
+import { hasRain, parseTheme, type Theme } from "./lib/themes.ts";
+import { MatrixRain } from "./components/MatrixRain.tsx";
 
 export function App() {
   const [state, setState] = useState<ProjectState | null>(null);
@@ -45,6 +48,7 @@ export function App() {
   const [opened, setOpened] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<Task | null>(null);
   const [theme, setTheme] = useState<Theme>(initialTheme);
+  const [icon, setIcon] = useState<BoardIcon>({ kind: "default" });
   const [dragging, setDragging] = useState<Task | null>(null);
   // Only which column is being aimed at — deliberately not a full preview of
   // the rearranged board. Re-rendering cards into another column mid-drag makes
@@ -61,7 +65,19 @@ export function App() {
 
   // The stream carries every change, including ones Claude makes in its own
   // process, so it is the only thing keeping this board current.
-  useEffect(() => subscribe(setState, setConnection), []);
+  useEffect(() => subscribe(setState, setConnection, setIcon), []);
+
+  // The stream only pushes changes, so the icon in force at load has to be
+  // asked for once. A failure here is not worth a banner: the default mark is
+  // a correct thing to draw, and the stream corrects it on the next change.
+  useEffect(() => {
+    fetchIcon().then(setIcon).catch(() => {});
+  }, []);
+
+  // A project that picked an icon picked it for the tab too — that is half the
+  // point of having one. Done from here rather than in index.html because the
+  // choice is per project and the HTML is shipped once for all of them.
+  useEffect(() => applyFavicon(icon), [icon]);
 
   const reload = useCallback(async () => {
     setConnection("connecting");
@@ -243,11 +259,15 @@ export function App() {
 
   return (
     <div className="cc-app" style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+      {/* Portals itself behind the shell — see MatrixRain. */}
+      {hasRain(theme) && <MatrixRain />}
+
       <Header
         cwd={state.cwd}
         connection={connection}
+        icon={icon}
         theme={theme}
-        onToggleTheme={() => setTheme(theme === "dark" ? "light" : "dark")}
+        onPickTheme={setTheme}
         onNewTask={() => setComposing(COLUMNS[0]!)}
         newTaskHint="N"
       />
@@ -400,8 +420,55 @@ function Rejected({ message, onDismiss }: { message: string; onDismiss: () => vo
   );
 }
 
+/**
+ * Points the tab's icon at whatever this project picked.
+ *
+ * Only the one link carrying `id="cc-favicon"` is touched, and the shipped PNG
+ * and apple-touch links are left alone: they are the fallbacks a browser
+ * reaches for when this one fails, and a project that resets wants them back.
+ *
+ * The id is what makes this findable a second time. Selecting on `type` would
+ * work exactly once — this function rewrites the type, so the next call would
+ * match nothing and a reset would leave the tab pointing at a deleted image.
+ *
+ * An emoji becomes a data: SVG with the character drawn in it — there is no
+ * file to point at, and rendering one through a canvas would need the emoji
+ * font to have loaded first.
+ */
+function applyFavicon(icon: BoardIcon): void {
+  const link = document.getElementById("cc-favicon") as HTMLLinkElement | null;
+  if (!link) return;
+
+  if (icon.kind === "default") {
+    link.href = DEFAULT_FAVICON;
+    link.type = "image/svg+xml";
+    return;
+  }
+
+  if (icon.kind === "image") {
+    link.href = iconImageUrl(icon);
+    link.type = icon.mediaType;
+    return;
+  }
+
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">` +
+    `<text x="16" y="23" font-size="26" text-anchor="middle">${escapeXml(icon.value)}</text></svg>`;
+  link.href = `data:image/svg+xml,${encodeURIComponent(svg)}`;
+  link.type = "image/svg+xml";
+}
+
+const DEFAULT_FAVICON = "/favicon.svg";
+
+/** The emoji is user input and is about to become markup. */
+function escapeXml(value: string): string {
+  return value.replace(/[<>&"']/g, (c) => `&#${c.charCodeAt(0)};`);
+}
+
 function initialTheme(): Theme {
-  const saved = localStorage.getItem("cc-theme");
-  if (saved === "light" || saved === "dark") return saved;
+  // A value we no longer ship means we do not know what this board should
+  // look like, so the system preference answers instead of a guess.
+  const saved = parseTheme(localStorage.getItem("cc-theme"));
+  if (saved) return saved;
   return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }

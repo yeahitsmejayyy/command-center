@@ -4,6 +4,7 @@ import { App } from "./App.tsx";
 import "./styles/tokens.css";
 import "./styles/fonts.css";
 import "./styles/app.css";
+import "./styles/themes.css";
 
 const root = document.getElementById("root");
 if (!root) throw new Error("The board has nowhere to mount: #root is missing.");

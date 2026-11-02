@@ -7,7 +7,16 @@ import {
   readAttachment,
   writeAttachment,
 } from "../../adapters/attachments.ts";
+import {
+  MAX_ICON_BYTES,
+  RECOMMENDED_ICON_PX,
+  deleteIcon,
+  readIcon,
+  sniffImageType,
+  writeIcon,
+} from "../../adapters/icon.ts";
 import { mutate } from "../../adapters/mutate.ts";
+import { MAX_EMOJI_LENGTH, readPrefs, setIcon, type BoardIcon } from "../../adapters/prefs.ts";
 import { clearRuntime, publishRuntime } from "../../adapters/runtime.ts";
 import { readState } from "../../adapters/store.ts";
 import type { Event, ProjectState } from "../../core/types.ts";
@@ -51,20 +60,39 @@ export async function startServer(opts: ServeOptions): Promise<RunningServer> {
   const log = logFor(cwd);
   const clients = new Set<ReadableStreamDefaultController<Uint8Array>>();
 
+  /** Pushes one already-encoded SSE frame to everyone still listening. */
+  const push = (frame: string) => {
+    if (clients.size === 0) return;
+    const bytes = new TextEncoder().encode(frame);
+    for (const client of clients) {
+      try {
+        client.enqueue(bytes);
+      } catch {
+        clients.delete(client); // client went away mid-write
+      }
+    }
+  };
+
   const broadcast = async () => {
     if (clients.size === 0) return;
     try {
-      const state = await readState(cwd);
-      const frame = new TextEncoder().encode(`data: ${JSON.stringify(state)}\n\n`);
-      for (const client of clients) {
-        try {
-          client.enqueue(frame);
-        } catch {
-          clients.delete(client); // client went away mid-write
-        }
-      }
+      push(`data: ${JSON.stringify(await readState(cwd))}\n\n`);
     } catch (err) {
       await log.error("could not read state for broadcast", { error: String(err) });
+    }
+  };
+
+  /**
+   * The icon travels as a named event, so the default `message` frames stay
+   * exactly what they were: a board state and nothing else. A client that has
+   * never heard of icons ignores this one.
+   */
+  const broadcastIcon = async () => {
+    if (clients.size === 0) return;
+    try {
+      push(`event: icon\ndata: ${JSON.stringify({ icon: (await readPrefs(cwd)).icon })}\n\n`);
+    } catch (err) {
+      await log.error("could not read prefs for broadcast", { error: String(err) });
     }
   };
 
@@ -76,7 +104,7 @@ export async function startServer(opts: ServeOptions): Promise<RunningServer> {
     port: 0,
     hostname: "127.0.0.1",
     idleTimeout: 0,
-    fetch: (req) => handle(req, { cwd, log, uiDir, clients, broadcast }),
+    fetch: (req) => handle(req, { cwd, log, uiDir, clients, broadcast, broadcastIcon }),
   });
 
   // Bun types this optional, but a listening server always has one.
@@ -135,6 +163,7 @@ interface Context {
   uiDir?: string;
   clients: Set<ReadableStreamDefaultController<Uint8Array>>;
   broadcast: () => Promise<void>;
+  broadcastIcon: () => Promise<void>;
 }
 
 async function handle(req: Request, ctx: Context): Promise<Response> {
@@ -145,6 +174,9 @@ async function handle(req: Request, ctx: Context): Promise<Response> {
     if (pathname === "/api/state") return json(await readState(ctx.cwd));
     if (pathname === "/api/stream") return stream(ctx);
     if (pathname === "/api/events" && req.method === "POST") return postEvent(req, ctx);
+
+    if (pathname === "/api/icon") return handleIcon(req, ctx);
+    if (pathname === "/api/icon/image") return handleIconImage(req, ctx);
 
     const attachment = pathname.match(/^\/api\/tasks\/([^/]+)\/attachments(?:\/([^/]+))?$/);
     if (attachment) return handleAttachment(req, ctx, attachment[1]!, attachment[2]);
@@ -188,6 +220,132 @@ async function postEvent(req: Request, ctx: Context): Promise<Response> {
 
   await ctx.broadcast();
   return json({ state: result.state, effects: result.effects });
+}
+
+/**
+ * The project's board icon: read it, set it, clear it.
+ *
+ * The choice is a preference rather than board state, so it travels on its own
+ * route and its own SSE event. Folding it into the state payload would have
+ * meant every mutation response carrying it too — and the board replaces its
+ * state wholesale from those responses, so the one that forgot would blank the
+ * icon until the next reload.
+ */
+async function handleIcon(req: Request, ctx: Context): Promise<Response> {
+  if (req.method === "GET") {
+    return json({ icon: (await readPrefs(ctx.cwd)).icon, recommendedPx: RECOMMENDED_ICON_PX });
+  }
+
+  if (req.method === "PUT") {
+    const body = (await req.json().catch(() => null)) as { kind?: string; value?: string } | null;
+
+    if (body?.kind === "default") return resetIcon(ctx);
+
+    if (body?.kind === "emoji") {
+      const value = (body.value ?? "").trim();
+      if (!value) {
+        return fail(400, "NO_EMOJI", "That did not include an emoji.", ctx);
+      }
+      if (value.length > MAX_EMOJI_LENGTH) {
+        return fail(400, "NOT_AN_EMOJI", "Pick a single emoji — that is too long to be one.", ctx);
+      }
+      // A codepoint typed into a field is not what was asked for, and an
+      // arbitrary string drawn at 19px is a wordmark nobody chose.
+      if (!/\p{Extended_Pictographic}|\p{Regional_Indicator}/u.test(value)) {
+        return fail(400, "NOT_AN_EMOJI", "That is not an emoji. Pick one from the list.", ctx);
+      }
+
+      await deleteIcon(ctx.cwd); // the old upload is no longer anyone's icon
+      await setIcon(ctx.cwd, { kind: "emoji", value });
+      await ctx.broadcastIcon();
+      return json({ icon: { kind: "emoji", value } satisfies BoardIcon });
+    }
+
+    return fail(400, "BAD_ICON", 'Send {"kind":"default"} or {"kind":"emoji","value":"🛰"}.', ctx);
+  }
+
+  if (req.method === "DELETE") return resetIcon(ctx);
+
+  return fail(405, "BAD_METHOD", `${req.method} is not supported here.`, ctx);
+}
+
+async function resetIcon(ctx: Context): Promise<Response> {
+  await deleteIcon(ctx.cwd);
+  await setIcon(ctx.cwd, { kind: "default" });
+  await ctx.broadcastIcon();
+  return json({ icon: { kind: "default" } satisfies BoardIcon });
+}
+
+/**
+ * Upload an icon, or serve the uploaded one.
+ *
+ * Unlike an attachment, this is served inline — a picture has to render to be
+ * an icon. That is a privilege attachments are deliberately denied, so it is
+ * earned here instead: the bytes are identified by their own leading bytes,
+ * never by the Content-Type the uploader claimed, and only four inert raster
+ * formats are allowed through. SVG is refused precisely because it would
+ * render: it is a document that can carry script, and this one is served from
+ * the board's own origin.
+ */
+async function handleIconImage(req: Request, ctx: Context): Promise<Response> {
+  if (req.method === "GET") {
+    const prefs = await readPrefs(ctx.cwd);
+    if (prefs.icon.kind !== "image") {
+      return fail(404, "NO_ICON", "This project has not uploaded an icon.", ctx);
+    }
+    const bytes = await readIcon(ctx.cwd);
+    if (!bytes) return fail(404, "NOT_FOUND", "That icon is no longer on disk.", ctx);
+
+    return new Response(new Uint8Array(bytes), {
+      headers: {
+        "content-type": prefs.icon.mediaType,
+        // Sniffed on upload and pinned here: the browser must not be allowed to
+        // reconsider the type of a file a user supplied.
+        "x-content-type-options": "nosniff",
+        "content-security-policy": "default-src 'none'; sandbox",
+        // The URL is stable across uploads, so freshness comes from the
+        // ?v=updatedAt the board appends, not from revalidation.
+        "cache-control": "public, max-age=31536000, immutable",
+      },
+    });
+  }
+
+  if (req.method === "POST") {
+    const form = await req.formData().catch(() => null);
+    const file = form?.get("file");
+    if (!(file instanceof File)) {
+      return fail(400, "NO_FILE", "That upload did not include a file.", ctx);
+    }
+    if (file.size > MAX_ICON_BYTES) {
+      return fail(
+        413,
+        "TOO_LARGE",
+        `That image is ${(file.size / 1024 / 1024).toFixed(1)} MB. The limit is 1 MB — ` +
+          `a ${RECOMMENDED_ICON_PX}x${RECOMMENDED_ICON_PX} PNG is usually well under it.`,
+        ctx,
+      );
+    }
+
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const mediaType = sniffImageType(bytes);
+    if (!mediaType) {
+      return fail(
+        415,
+        "NOT_AN_IMAGE",
+        "That file is not a PNG, JPEG, GIF, or WebP. SVG is not accepted — " +
+          `export a ${RECOMMENDED_ICON_PX}x${RECOMMENDED_ICON_PX} PNG instead.`,
+        ctx,
+      );
+    }
+
+    const updatedAt = Date.now();
+    await writeIcon(ctx.cwd, bytes);
+    await setIcon(ctx.cwd, { kind: "image", mediaType, updatedAt });
+    await ctx.broadcastIcon();
+    return json({ icon: { kind: "image", mediaType, updatedAt } satisfies BoardIcon });
+  }
+
+  return fail(405, "BAD_METHOD", `${req.method} is not supported here.`, ctx);
 }
 
 const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;

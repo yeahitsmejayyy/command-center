@@ -4,6 +4,23 @@
      heading to a version number — and bumping the three manifests to match —
      is what cuts a release. -->
 
+## Unreleased
+
+### Added
+
+- **A project can pick its own board icon.** An emoji from a searchable picker, or an uploaded image, replacing the command-center mark in the header and in the browser tab. The mark itself is the control — clicking it opens the picker. A project that never picks one is unchanged.
+- **Four colour modes, and a picker to choose between them.** Day and Night are unchanged. **Cyberpunk** is neon blue on deep navy; **Neo** is black and grey with Matrix rain falling behind the board. The day/night toggle is now a menu — a two-state button cannot express four options, and there is no sensible "next" theme once there are more than two.
+- **A stored mode we no longer ship falls back to the system preference** rather than to an arbitrary theme, which is what a board whose theme was renamed or dropped should do.
+
+### Security
+
+- **An uploaded icon is identified by its own bytes, not by what the upload claims.** It is the one user-supplied file the board serves inline from its own origin, so only PNG, JPEG, GIF, and WebP are accepted, each confirmed by signature. SVG is refused: it is a document that can carry script, and rendering one in the board's origin would let an uploaded file act as the board. Uploads are capped at 1 MB.
+
+### Changed
+
+- **Neo's column wells are translucent**, so the rain is visible behind the board. Cards stay opaque — a card is text someone has to read.
+- **The rain respects `prefers-reduced-motion`** and stops entirely when the tab is hidden. It paints on its own canvas outside React, so a drag over it is unaffected: median frame time while dragging is the same as Night's.
+
 ## 2.2.0
 
 ### Added

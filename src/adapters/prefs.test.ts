@@ -29,7 +29,7 @@ describe("readPrefs", () => {
    * appear, and defaulting to enabled would launch a server nobody asked for.
    */
   test("a project that has never been asked is undecided", async () => {
-    expect(await readPrefs(CWD)).toEqual({ enabled: null, concurrency: 1 });
+    expect(await readPrefs(CWD)).toEqual({ enabled: null, concurrency: 1, icon: { kind: "default" } });
   });
 
   test("remembers an enable", async () => {
@@ -62,7 +62,7 @@ describe("readPrefs", () => {
     mkdirSync(dirname(path), { recursive: true });
     writeFileSync(path, "{ corrupted");
 
-    expect(await readPrefs(CWD)).toEqual({ enabled: null, concurrency: 1 });
+    expect(await readPrefs(CWD)).toEqual({ enabled: null, concurrency: 1, icon: { kind: "default" } });
   });
 
   test("a file with an unexpected shape reads as undecided", async () => {
@@ -70,7 +70,7 @@ describe("readPrefs", () => {
     mkdirSync(dirname(path), { recursive: true });
     writeFileSync(path, JSON.stringify({ enabled: "yes please" }));
 
-    expect(await readPrefs(CWD)).toEqual({ enabled: null, concurrency: 1 });
+    expect(await readPrefs(CWD)).toEqual({ enabled: null, concurrency: 1, icon: { kind: "default" } });
   });
 });
 
@@ -94,14 +94,14 @@ describe("concurrency", () => {
     await setConcurrency(CWD, 4);
     await setEnabled(CWD, true);
 
-    expect(await readPrefs(CWD)).toEqual({ enabled: true, concurrency: 4 });
+    expect(await readPrefs(CWD)).toEqual({ enabled: true, concurrency: 4, icon: { kind: "default" } });
   });
 
   test("raising the limit keeps the enable", async () => {
     await setEnabled(CWD, true);
     await setConcurrency(CWD, 2);
 
-    expect(await readPrefs(CWD)).toEqual({ enabled: true, concurrency: 2 });
+    expect(await readPrefs(CWD)).toEqual({ enabled: true, concurrency: 2, icon: { kind: "default" } });
   });
 
   /**
@@ -111,7 +111,7 @@ describe("concurrency", () => {
   test("a limit set before the project was asked leaves it undecided", async () => {
     await setConcurrency(CWD, 2);
 
-    expect(await readPrefs(CWD)).toEqual({ enabled: null, concurrency: 2 });
+    expect(await readPrefs(CWD)).toEqual({ enabled: null, concurrency: 2, icon: { kind: "default" } });
   });
 
   test("a limit below one is rejected by the schema and reads as undecided", async () => {
@@ -119,6 +119,6 @@ describe("concurrency", () => {
     mkdirSync(dirname(path), { recursive: true });
     writeFileSync(path, JSON.stringify({ enabled: true, updatedAt: 1, concurrency: 0 }));
 
-    expect(await readPrefs(CWD)).toEqual({ enabled: null, concurrency: 1 });
+    expect(await readPrefs(CWD)).toEqual({ enabled: null, concurrency: 1, icon: { kind: "default" } });
   });
 });

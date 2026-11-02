@@ -4,7 +4,7 @@
      heading to a version number — and bumping the three manifests to match —
      is what cuts a release. -->
 
-## Unreleased
+## 2.3.0
 
 ### Added
 

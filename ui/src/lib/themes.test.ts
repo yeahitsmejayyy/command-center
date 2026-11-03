@@ -163,3 +163,55 @@ describe("swatches against the real CSS", () => {
     expect(new Set(bases).size).toBe(bases.length);
   });
 });
+
+/**
+ * The rain's colours.
+ *
+ * It once read --primary and --ink off the document at mount, which made it
+ * whatever theme happened to be in force at that instant — brand orange on a
+ * cold load, cyan when switched in from Cyberpunk. The fix was to give it
+ * tokens of its own that only Neo declares, plus fallbacks that are Neo's own
+ * greens. These tests pin both halves of that.
+ */
+describe("the rain's colours", () => {
+  const themesCss = readFileSync(new URL("../styles/themes.css", import.meta.url), "utf8");
+  const tokensCss = readFileSync(new URL("../styles/tokens.css", import.meta.url), "utf8");
+  const rain = readFileSync(new URL("../components/MatrixRain.tsx", import.meta.url), "utf8");
+
+  const neoBlock = themesCss.match(/\[data-theme="neo"\]\s*\{([^}]*)\}/)![1]!;
+
+  test.each(["--rain-trail", "--rain-head"])("%s is declared in the Neo block", (name) => {
+    expect(neoBlock).toContain(name);
+  });
+
+  test.each(["--rain-trail", "--rain-head"])("%s is declared nowhere else", (name) => {
+    // The whole guarantee rests on this: a token no other theme declares
+    // resolves to nothing elsewhere, so the fallback — green — takes over.
+    const everywhere = (themesCss + tokensCss).split(`${name}:`).length - 1;
+    expect(everywhere).toBe(1);
+  });
+
+  test("the canvas reads its own styles, not the document's", () => {
+    // getComputedStyle(document.documentElement) is what made the colour
+    // depend on when the component mounted relative to its parent.
+    expect(rain).not.toContain("getComputedStyle(document.documentElement)");
+    expect(rain).toContain("getComputedStyle(canvas)");
+  });
+
+  test("it reads the rain tokens, not another theme's accent", () => {
+    expect(rain).toContain('getPropertyValue("--rain-trail")');
+    expect(rain).toContain('getPropertyValue("--rain-head")');
+    expect(rain).not.toContain('getPropertyValue("--primary")');
+  });
+
+  test("every fallback colour is one Neo itself declares", () => {
+    // A fallback is only reached when the theme is not resolvable, so it has
+    // to be green on its own account — not inherited from anything.
+    const fallbacks = [...rain.matchAll(/getPropertyValue\("--rain-\w+"\)[^|]*\|\|\s*"(#[0-9A-Fa-f]{6})"/g)]
+      .map((m) => m[1]!.toUpperCase());
+
+    expect(fallbacks.length).toBe(2);
+    const neoColours = (neoBlock.match(/#[0-9A-Fa-f]{6}/g) ?? []).map((h) => h.toUpperCase());
+    for (const fallback of fallbacks) expect(neoColours).toContain(fallback);
+  });
+});

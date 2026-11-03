@@ -1,6 +1,6 @@
 {
   "name": "command-center",
-  "version": "2.3.0",
+  "version": "2.3.1",
   "description": "Per-project task queue companion for Claude Code.",
   "license": "MIT",
   "type": "module",

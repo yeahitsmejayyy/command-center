@@ -13,7 +13,7 @@ import {
 } from "@dnd-kit/core";
 import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import { planDrop } from "./lib/placement.ts";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   fetchIcon,
   fetchState,
@@ -58,7 +58,12 @@ export function App() {
   const boardRef = useRef<HTMLElement>(null);
   const savedScroll = useRef(0);
 
-  useEffect(() => {
+  // A layout effect, not a passive one. Passive effects run child-first, so a
+  // child that reads a theme token when it mounts would read it before this
+  // ran and get the default theme's value — which is how the Matrix rain came
+  // out orange. Layout effects all run before any passive effect, so the
+  // attribute is in place before anything downstream looks at it.
+  useLayoutEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
     localStorage.setItem("cc-theme", theme);
   }, [theme]);

@@ -136,6 +136,14 @@
   --session-attached: #00FF41;
   --session-idle:     #4A8552;
   --session-lost:     #FF3860;
+
+  /* The rain's own colours, named rather than borrowed.
+     Declared only here, which is the point: the canvas reads these, and if the
+     board is not Neo they resolve to nothing and the component falls back to
+     these same greens. The rain can therefore never come out another theme's
+     colour, whatever order things mount in. */
+  --rain-trail: var(--primary);
+  --rain-head:  var(--ink);
 }
 
 /* ---------- Legibility on a bright accent ----------

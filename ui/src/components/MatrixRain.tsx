@@ -37,6 +37,16 @@ const CELL = 16;
  */
 const STEP_MS = 55;
 
+/**
+ * How hard each step dims what is already on the canvas.
+ *
+ * This is the rain's opacity dial, inverted: a lower number dims more slowly,
+ * so trails live longer and more of them are on screen at once. At 0.08 the
+ * rain was faint enough to miss; 0.06 reads as present without becoming a
+ * background anyone has to look past to read a card.
+ */
+const FADE = 0.06;
+
 export function MatrixRain() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [stilled, setStilled] = useState(prefersReducedMotion);
@@ -57,11 +67,23 @@ export function MatrixRain() {
     const context = canvas?.getContext("2d");
     if (!canvas || !context) return;
 
-    // Taken once, at mount: the component only exists while Neo is active, so
-    // the theme cannot change underneath it without a remount.
-    const styles = getComputedStyle(document.documentElement);
-    const trail = styles.getPropertyValue("--primary").trim() || "#00FF41";
-    const head = styles.getPropertyValue("--ink").trim() || "#D6FFD9";
+    // Taken once, at mount, and read off the canvas rather than the document:
+    // the canvas is a child of <body>, so it inherits whatever theme is in
+    // force, and it is the element these values are actually for.
+    const styles = getComputedStyle(canvas);
+    // --rain-* are declared only inside [data-theme="neo"], which is what makes
+    // this safe to read at any moment: if the attribute is not on the document
+    // yet, these resolve to nothing and the fallbacks below apply — and the
+    // fallbacks are Neo's own greens, because Neo is the only theme that rains.
+    //
+    // Reading --primary and --ink here instead, as this used to, made the rain
+    // whatever colour the board happened to be when the canvas mounted. React
+    // runs a child's effect before its parent's, and the attribute is set in
+    // App's effect — so on a cold load the document was still the default
+    // theme and the rain came out brand orange. Switching in from Cyberpunk
+    // made it cyan. The colour was never Neo's except by luck.
+    const trail = styles.getPropertyValue("--rain-trail").trim() || "#00FF41";
+    const head = styles.getPropertyValue("--rain-head").trim() || "#D6FFD9";
     // A canvas font string is not CSS and will not resolve a custom property,
     // so the stack has to be read out rather than referenced.
     const mono = styles.getPropertyValue("--font-mono").trim() || "monospace";
@@ -103,7 +125,7 @@ export function MatrixRain() {
 
       // The trail: each step dims what is already there instead of clearing
       // it, which is what makes the glyphs appear to fall and decay.
-      context.fillStyle = "rgba(0, 0, 0, 0.08)";
+      context.fillStyle = `rgba(0, 0, 0, ${FADE})`;
       context.fillRect(0, 0, width, height);
 
       for (let column = 0; column < heads.length; column += 1) {

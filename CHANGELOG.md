@@ -4,6 +4,17 @@
      heading to a version number — and bumping the three manifests to match —
      is what cuts a release. -->
 
+## 2.3.1
+
+### Fixed
+
+- **The Matrix rain is green again.** It read `--primary` and `--ink` off the document when the canvas mounted, which made it whatever colour the board happened to be at that instant — the brand orange on a cold load, because React runs a child's effect before its parent's and the theme attribute had not been applied yet; cyan when Neo was switched in from Cyberpunk. The rain now reads tokens only Neo declares, and falls back to Neo's own greens when it cannot resolve them, so it cannot come out another theme's colour whatever order things mount in.
+- **The theme attribute is applied in a layout effect**, which is the underlying fix: it now lands before any child reads a theme token, not after.
+
+### Changed
+
+- **The rain is slightly more present.** Each step dims the canvas a little less (0.08 to 0.06), so trails live longer and more of them are on screen at once.
+
 ## 2.3.0
 
 ### Added

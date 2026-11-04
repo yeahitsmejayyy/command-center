@@ -620,3 +620,43 @@
     margin: 0 auto;
   }
 }
+
+/* ---------- Native scrollbars ----------
+ * Hidden on every surface the board scrolls.
+ *
+ * This was invisible to us because macOS draws overlay scrollbars: they appear
+ * while you scroll and fade out again, so the board looked clean on the
+ * machine it was built on. Windows and most Linux desktops draw classic
+ * scrollbars instead — always present, and occupying real layout width — so
+ * every column carried a permanent grey rail down its right edge, five of them
+ * across the board.
+ *
+ * Scrolling itself is untouched: wheel, trackpad, touch, keyboard and
+ * programmatic scrolling all behave exactly as before. What goes is only the
+ * drawn bar. Each column already states its own count in the header, which is
+ * the signal that there is more below.
+ *
+ * Three declarations because there are three mechanisms in play, and no single
+ * one covers every browser the board might be opened in.
+ *
+ * .cc-dialog is deliberately absent: the export gives it overflow-y: auto, but
+ * this file overrides that to hidden further up, so the dialog itself never
+ * scrolls -- only its body does.
+ */
+.cc-column__list,
+.cc-dialog__body,
+.cc-prompt,
+.cc-emojiscroll {
+  scrollbar-width: none; /* Firefox, and the standard */
+  -ms-overflow-style: none; /* legacy Edge and IE */
+}
+
+.cc-column__list::-webkit-scrollbar,
+.cc-dialog__body::-webkit-scrollbar,
+.cc-prompt::-webkit-scrollbar,
+.cc-emojiscroll::-webkit-scrollbar {
+  /* Chrome, Edge and Safari. `display: none` is the usual spelling; a zero
+     box is equivalent here and does not fight the element's own display. */
+  width: 0;
+  height: 0;
+}

@@ -4,6 +4,12 @@
      heading to a version number — and bumping the three manifests to match —
      is what cuts a release. -->
 
+## 2.3.2
+
+### Fixed
+
+- **Native scrollbars no longer show on the board's columns.** macOS draws overlay scrollbars that fade out when you stop scrolling, so this was invisible on the machine the board was built on. Windows and most Linux desktops draw classic ones that are always present and take layout width, putting a permanent grey rail down the right edge of all five columns. They are hidden now on every surface that scrolls — columns, dialog bodies, the instructions block, and the emoji picker. Scrolling by wheel, trackpad, touch, keyboard or code is unchanged; only the drawn bar is gone.
+
 ## 2.3.1
 
 ### Fixed
